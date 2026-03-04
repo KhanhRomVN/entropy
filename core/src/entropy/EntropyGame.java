@@ -1,34 +1,25 @@
 package entropy;
 
-import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import entropy.ui.MainScreen;
 
-public class EntropyGame extends ApplicationAdapter {
-    private SpriteBatch batch;
-    private Texture img;
-    
+public class EntropyGame extends Game {
+    public static SpriteBatch batch;
+
     @Override
     public void create() {
         batch = new SpriteBatch();
-        img = new Texture("badlogic.jpg");
+        Vars.init();
+        
+        // Khởi tạo màn hình chính
+        setScreen(new MainScreen());
     }
 
     @Override
-    public void render() {
-        Gdx.gl.glClearColor(0.1f, 0.1f, 0.1f, 1);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-        
-        batch.begin();
-        batch.draw(img, 0, 0);
-        batch.end();
-    }
-    
-    @Override
     public void dispose() {
+        super.dispose();
         batch.dispose();
-        img.dispose();
     }
 }

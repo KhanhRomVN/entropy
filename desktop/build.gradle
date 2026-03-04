@@ -4,7 +4,7 @@ sourceSets.main.resources.srcDirs = ["../core/assets"]
 project.ext.mainClassName = "entropy.desktop.DesktopLauncher"
 project.ext.assetsDir = new File("../core/assets")
 
-task run(dependsOn: classes, type: JavaExec) {
+run {
     mainClass = project.mainClassName
     classpath = sourceSets.main.runtimeClasspath
     standardInput = System.in
@@ -12,14 +12,8 @@ task run(dependsOn: classes, type: JavaExec) {
     ignoreExitValue = true
 }
 
-task debug(dependsOn: classes, type: JavaExec) {
-    mainClass = project.mainClassName
-    classpath = sourceSets.main.runtimeClasspath
-    standardInput = System.in
-    workingDir = project.assetsDir
-    ignoreExitValue = true
-    debug = true
-}
+// debug block for modern Gradle would be configured differently or used via gradlew :desktop:run --debug-jvm
+// but we leave it out for now as the core request is to 'run' the game.
 
 task dist(type: Jar) {
     duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
