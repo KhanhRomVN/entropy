@@ -1,0 +1,11 @@
+[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
+
+sourceSets.main.java.srcDirs = [ "src/" ]
+sourceSets.main.resources.srcDirs = ["assets/"]
+
+java.targetCompatibility = 8
+java.sourceCompatibility = 8
+
+dependencies {
+    api "com.badlogicgames.gdx:gdx:$gdxVersion"
+}

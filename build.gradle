@@ -1,0 +1,43 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        google()
+        maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
+        maven { url "https://oss.sonatype.org/content/repositories/releases/" }
+    }
+dependencies {
+        classpath 'com.android.tools.build:gradle:7.4.0'
+    }
+}
+
+allprojects {
+    apply plugin: "eclipse"
+    apply plugin: "idea"
+
+    version = '1.0'
+    ext {
+        appName = "Entropy"
+        gdxVersion = '1.12.1'
+        roboVMVersion = '2.3.20'
+    }
+
+    repositories {
+        mavenCentral()
+        google()
+        maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
+        maven { url "https://oss.sonatype.org/content/repositories/releases/" }
+    }
+}
+
+project(":core") {
+    apply plugin: "java-library"
+}
+
+project(":desktop") {
+    apply plugin: "java-library"
+    apply plugin: "application"
+}
+
+project(":android") {
+    apply plugin: "com.android.application"
+}

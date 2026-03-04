@@ -1,1 +1,48 @@
-temp
+# Build and Temp
+build/
+bin/
+out/
+temp/
+obj/
+*.log
+*.tmp
+*.swp
+
+# Gradle
+.gradle/
+local.properties
+.build_state
+.gradle_bootstrapping
+capture/
+
+# Android
+gen/
+assets/bin/
+android/assets/bin/
+android/gen/
+android/bin/
+*.apk
+*.ap_
+*.dex
+*.class
+*.aar
+
+# IDE - IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# IDE - Eclipse
+.settings/
+.project
+.classpath
+.metadata/
+
+# IDE - VS Code
+.vscode/
+
+# OS related
+.DS_Store
+Thumbs.db
