@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://dfup3o4qkcwjg"]
+
+[ext_resource type="Script" uid="uid://bbqehva6fh3d8" path="res://scenes/maps/test_1.gd" id="1_02rsr"]
+
+[node name="Node3D" type="Node3D" unique_id=1890879668]
+script = ExtResource("1_02rsr")
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=821825560]
+transform = Transform3D(0.7498394, 0.36064342, -0.5546866, -0.0035764189, 0.8405738, 0.5416854, 0.66161025, -0.40419328, 0.6315851, -11.200096, 7.182081, 13.096648)
+projection = 1
+size = 24.849
+near = 0.051
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1081596765]
+transform = Transform3D(0.70710677, -0.49999997, 0.49999997, 0, 0.70710677, 0.70710677, -0.70710677, -0.49999997, 0.49999997, 0, 0, 0)
+shadow_enabled = true

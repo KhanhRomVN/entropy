@@ -1,48 +1,28 @@
-# Build and Temp
-build/
-bin/
-out/
-temp/
-obj/
-*.log
-*.tmp
-*.swp
+# Godot-specific ignores
+.godot/
+/android/
+/temp/
+/dist/
+*.uid
 
-# Gradle
-.gradle/
-local.properties
-.build_state
-.gradle_bootstrapping
-capture/
+# Export templates (Rất quan trọng vì file .tpz của bạn rất nặng)
+*.tpz
 
-# Android
-gen/
-assets/bin/
-android/assets/bin/
-android/gen/
-android/bin/
-*.apk
-*.ap_
-*.dex
-*.class
-*.aar
+# Blender backup files
+*.blend1
+*.blend2
+*.blend3
 
-# IDE - IntelliJ
-.idea/
-*.iml
-*.ipr
-*.iws
-out/
+# Python-specific (cho các script .py trong dự án)
+__pycache__/
+*.py[cod]
+*$py.class
 
-# IDE - Eclipse
-.settings/
-.project
-.classpath
-.metadata/
-
-# IDE - VS Code
-.vscode/
-
-# OS related
+# OS-specific
 .DS_Store
 Thumbs.db
+
+# Mono/C# (nếu bạn có dùng sau này)
+.mono/
+bin/
+obj/
