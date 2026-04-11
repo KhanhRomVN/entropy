@@ -27,12 +27,15 @@ var _occupied_tiles: Dictionary = {} # Trình quản lý các ô đã có nhà (
 var _noise: FastNoiseLite
 var _forest_noise: FastNoiseLite
 var _river_noise: FastNoiseLite
+var _river_mask_noise: FastNoiseLite # Lớp mặt nạ để sông thưa thớt hơn
 var _temp_noise: FastNoiseLite    # Noise cho Nhiệt độ (Lạnh -> Nóng)
 var _moisture_noise: FastNoiseLite # Noise cho Độ ẩm (Khô -> Ướt)
 var _biome_noise: FastNoiseLite    # Noise đặc thù để phân chia 14 vùng Biome
 var _mist_noise: FastNoiseLite     # Noise cho sương mù ở Misty Grassland
 var _scatter_noise: FastNoiseLite    # Noise tần số cao để phân tán vật thể (Quặng)
 var _noise_cache: Dictionary = {} # Cache noise values theo chunk position
+var _pending_teleport_tile: Vector2 = Vector2(-99999, -99999) # Chẩn đoán sau khi đáp xuống
+var _expected_biome_after_teleport: String = "" # Để so khớp với Map
 
 var _ui_layer: CanvasLayer
 
@@ -132,6 +135,16 @@ var _fade_check_timer: float = 0.0
 const FADE_CHECK_INTERVAL: float = 0.5 # Check mỗi 0.5s thay vì dùng Area2D
 var _cached_player: CharacterBody2D = null
 
+# COMPONENT C: Spatial Hash — fade check O(1) thay vì O(N)
+const SPATIAL_CELL: float = 1000.0  # Ô lưới 1000px (~2 tile)
+var _spatial_hash: Dictionary = {}  # {Vector2i(cell) -> Array[Node2D (pivots)]}
+
+# COMPONENT B: MultiMeshTreeRenderer
+const _MULTIMESH_SCRIPT = preload("res://scripts/multi_mesh_tree_renderer.gd")
+var _tree_renderer: Node2D = null
+# Các loại cây dùng MultiMesh (thiên nhiên, rất nhiều) — công trình vẫn dùng Sprite2D
+const MULTIMESH_TREE_TYPES: Array = ["oak", "maple", "bamboo", "cactus", "coffee", "cotton"]
+
 # ZERO-LAG WORLD GEN (Stage 2: Perfect Smoothness)
 var _generation_queue: Array[Vector2i] = [] 
 var _generation_set: Dictionary = {} # Dùng để tra cứu O(1) tránh đứng hình khi tìm trong mảng
@@ -164,12 +177,15 @@ var _t_noise: int = 0
 var _t_tiles: int = 0
 var _t_objects: int = 0
 var _t_physics_reg: int = 0
+var _t_process_other: int = 0 # Thêm tracking cho các phần update_chunks, removal, fade
 
 func _notification(what):
 	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
 		_is_window_focused = false
-		_toggle_pause_menu(true) # Tự động hiện menu và pause
-		print("[SYSTEM] Auto-Pause: Window lost focus.")
+		# TỐI ƯU: Nếu đang mở Bản đồ, không hiện Menu Pause để tránh chồng chéo khi dùng chuột phải
+		if _world_map_instance and !_world_map_instance.visible:
+			_toggle_pause_menu(true) # Tự động hiện menu và pause
+			print("[SYSTEM] Auto-Pause: Window lost focus.")
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	elif what == NOTIFICATION_WM_WINDOW_FOCUS_IN:
 		_is_window_focused = true
@@ -177,29 +193,31 @@ func _notification(what):
 		print("[SYSTEM] Window focused: Game remains paused if menu is up.")
 
 func _ready():
+	randomize() # Đảm bảo Seed thực sự ngẫu nhiên mỗi lần chạy
 	process_mode = Node.PROCESS_MODE_ALWAYS # Đảm bảo script này vẫn chạy khi game bị pause
+	_spatial_hash.clear() # Đảm bảo sạch rác khi khởi động
 	print("InfiniteMapGenerator: Initializing Pure 3D World...")
 	
 	# 0. KHỞI TẠO NOISE CẤU TRÚC THẾ GIỚI (QUY MÔ SIÊU LỤC ĐỊA)
 	_noise = FastNoiseLite.new()
 	_noise.seed = randi()
+	print("InfiniteMapGenerator: World Genesis with seed: ", _noise.seed)
 	_noise.noise_type = FastNoiseLite.TYPE_PERLIN
-	_noise.frequency = 0.000045 # QUY MÔ HÀNH TINH (Siêu lục địa dính liền)
-	_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
-	_noise.fractal_octaves = 5 # TỐI ƯU: 5 octave vẫn rất đẹp, nhanh hơn 28% so với 7
+	_noise.frequency = 0.0001 # Phù hợp với gạch 500px
+	_noise.fractal_octaves = 5 
 	_noise.fractal_lacunarity = 2.0
 	_noise.fractal_gain = 0.5
 	
 	# Noise cho Nhiệt độ (Climate Zones)
 	_temp_noise = FastNoiseLite.new()
 	_temp_noise.seed = _noise.seed + 101
-	_temp_noise.frequency = 0.00005 # Đới khí hậu bao trùm toàn bộ lục địa
-	_temp_noise.fractal_octaves = 1 # TỐI ƯU: Chỉ cần smooth value, không cần detail
+	_temp_noise.frequency = 0.00005 # Vùng khí hậu rộng lớn
+	_temp_noise.fractal_octaves = 1 
 	
 	# Noise cho Độ ẩm (Moisture Zones)
 	_moisture_noise = FastNoiseLite.new()
 	_moisture_noise.seed = _noise.seed + 202
-	_moisture_noise.frequency = 0.00005 # Nhất quán độ ẩm trên diện rộng
+	_moisture_noise.frequency = 0.00005 
 	_moisture_noise.fractal_octaves = 1 # TỐI ƯU: 1 octave là đủ cho vung khí hậu
 	
 	# Noise cho Rừng (cụm nhỏ)
@@ -229,14 +247,22 @@ func _ready():
 	_mist_noise.frequency = 0.02
 	_mist_noise.fractal_octaves = 1 # TỐI ƯU: Sương mù chỉ cần shape mượt
 	
-	# Noise cho sông
+	# Noise cho sông (Cải thiện: Uốn lượn hơn)
 	_river_noise = FastNoiseLite.new()
 	_river_noise.seed = _noise.seed + 1234
 	_river_noise.noise_type = FastNoiseLite.TYPE_PERLIN
-	_river_noise.frequency = 0.005 # Sông dài và thưa hơn
-	_river_noise.fractal_octaves = 2 # TỐI ƯU: 2 octave vẫn uốn khúc tự nhiên, nhanh hơn 2x
-	_river_noise.fractal_lacunarity = 2.0
-	_river_noise.fractal_gain = 0.5
+	_river_noise.frequency = 0.008 # Tăng tần số để sông uốn khúc nhiều hơn
+	_river_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	_river_noise.fractal_octaves = 4 # Tăng octave để dòng sông "vỡ" và tự nhiên
+	_river_noise.fractal_lacunarity = 2.2
+	_river_noise.fractal_gain = 0.55
+	
+	# Noise cho mặt nạ sông (River Mask - Watersheds)
+	_river_mask_noise = FastNoiseLite.new()
+	_river_mask_noise.seed = _noise.seed + 9999
+	_river_mask_noise.noise_type = FastNoiseLite.TYPE_PERLIN
+	_river_mask_noise.frequency = 0.0006 # Tần số cực thấp để tạo vùng lưu vực lớn
+	_river_mask_noise.fractal_octaves = 2
 	
 	print("InfiniteMapGenerator: World Genesis with seed: ", _noise.seed)
 	
@@ -318,8 +344,15 @@ func _ready():
 	
 	# KHỞI TẠO WORLD MAP
 	_world_map_instance = _world_map_scene.instantiate()
+	_world_map_instance.process_mode = Node.PROCESS_MODE_ALWAYS # Quan trọng: Để Map xử lý được Signal khi game Pause
 	add_child(_world_map_instance)
 	_world_map_instance.visible = false
+	
+	# Kết nối tín hiệu Dịch chuyển từ bản đồ
+	var map_root = _world_map_instance.get_node("Root")
+	if map_root.has_signal("teleport_requested"):
+		map_root.teleport_requested.connect(_on_map_teleport_requested)
+		print("[SYSTEM] World Map Signal Connected.")
 	
 	# ĐẶT TRẠNG THÁI BAN ĐẦU (Time-Slicing: Không tạo tức thì để tránh lag Engine)
 	_update_hotbar_ui()
@@ -338,7 +371,31 @@ func _ready():
 	# CACHE PLAYER REFERENCE (Tránh get_first_node_in_group mỗi frame)
 	_cached_player = get_tree().get_first_node_in_group("player")
 	
+	# COMPONENT B: Khởi tạo MultiMeshTreeRenderer
+	# Build texture map từ _tree_defs cho các loại cây được hỗ trợ
+	var texture_map: Dictionary = {}
+	for tree_type in MULTIMESH_TREE_TYPES:
+		if _tree_defs.has(tree_type) and _tree_defs[tree_type]["tex"] != null:
+			texture_map[tree_type] = _tree_defs[tree_type]["tex"]
+	
+	if not texture_map.is_empty():
+		_tree_renderer = _MULTIMESH_SCRIPT.new()
+		_tree_renderer.name = "MultiMeshTreeRenderer"
+		add_child(_tree_renderer)
+		_tree_renderer.setup(texture_map)
+		print("[MultiMesh] Tree renderer khởi tạo thành công: %d loại cây" % texture_map.size())
+	else:
+		push_warning("[MultiMesh] Không có texture nào, fallback sang Sprite2D mode")
+	
 	_update_ui_labels()
+	
+	# LOG KHÖI ĐÀU: Biome t\u1ea1i (0,0)
+	var n0 = _noise.get_noise_2d(0, 0) - 0.1
+	var t0 = _temp_noise.get_noise_2d(0, 0)
+	var m0 = _moisture_noise.get_noise_2d(0, 0)
+	var b0 = (_biome_noise.get_noise_2d(0, 0) + 1.0) / 2.0
+	var start_biome = _get_biome_name_debug(n0, t0, m0, b0)
+	print("[STARTUP-LOG] Player Spawn at (0,0) | Biome: ", start_biome)
 
 func _setup_debug_ui():
 	_ui_layer = CanvasLayer.new()
@@ -418,6 +475,17 @@ func _setup_debug_ui():
 	_ui_prof_tiles = Label.new(); vbox.add_child(_ui_prof_tiles)
 	_ui_prof_objects = Label.new(); vbox.add_child(_ui_prof_objects)
 	_ui_prof_physics = Label.new(); vbox.add_child(_ui_prof_physics)
+	
+	vbox.add_child(HSeparator.new())
+	var lbl_tp = Label.new(); lbl_tp.text = "--- [TELEPORT TO BIOME] ---"; lbl_tp.add_theme_color_override("font_color", Color.VIOLET); vbox.add_child(lbl_tp)
+	
+	var hf_tp = FlowContainer.new(); vbox.add_child(hf_tp)
+	var biomes = ["Desert", "Jungle", "Snowy", "Taiga", "Plains", "Volcano"]
+	for b_type in biomes:
+		var btn = Button.new()
+		btn.text = b_type
+		btn.pressed.connect(func(): teleport_to_nearest_biome(b_type))
+		hf_tp.add_child(btn)
 
 func _precalculate_clusters():
 	# CỐI XAY GIÓ KHÔNG CÒN HARDCODE Ở (0,0)
@@ -563,24 +631,9 @@ func _process(delta):
 		
 	var start_time = Time.get_ticks_usec()
 	var frame_start = Time.get_ticks_msec()
-	
-	# 1. CẬP NHẬT FPS (CHẨN ĐOÁN THÔNG MINH KHI LAG)
-	_fps_timer += delta
 	var current_fps = 1.0 / delta
-	if _fps_timer >= 1.0:
-		if current_fps < 30: # Chỉ log khi tụt dưới 30 FPS
-			# Tính toán module chiếm nhiều thời gian nhất để chỉ điểm
-			var report = "[ALERT] Critical FPS Drop: %.2f (%.2f ms) | NGUYÊN NHÂN: " % [current_fps, delta * 1000.0]
-			var breakdown = "Noise: %.1fms, Tiles: %.1fms, Objects: %.1fms, Physics: %.1fms" % [
-				_t_noise / 1000.0, _t_tiles / 1000.0, _t_objects / 1000.0, _t_physics_reg / 1000.0
-			]
-			print(report + breakdown)
-			
-			# Reset sau khi log để đo lại cho chu kỳ sau
-			_t_noise = 0; _t_tiles = 0; _t_objects = 0; _t_physics_reg = 0
-		_fps_timer = 0.0
-
-	# 2. CẬP NHẬT GHOST POSITION (CHỈ KHI XÂY DỰNG) - Throttle 30Hz
+	
+	# 1. CẬP NHẬT UI NHÃN (Throttled - 5 lần/giây)
 	var t_ghost_start = Time.get_ticks_usec()
 	_ghost_update_timer += delta
 	if _selected_building != "" and _temp_layer and _ghost_update_timer >= 0.033:
@@ -650,14 +703,18 @@ func _process(delta):
 		# TỐI ƯU CỰC ĐỘ: Chỉ quét tìm chunk mới theo chu kỳ (Throttling)
 		_chunk_update_timer += delta
 		if _chunk_update_timer >= CHUNK_UPDATE_INTERVAL:
+			var t_start = Time.get_ticks_usec()
 			update_chunks()
+			_t_process_other += (Time.get_ticks_usec() - t_start)
 			_chunk_update_timer = 0.0
 	
 	# Xử lý hàng đợi tạo chunk với ngân sách thích ứng
 	var tiles_generated = _process_generation_queue(_gen_budget_usec)
 	
 	# Xử lý hàng đợi xóa chunk cũ (1 chunk mỗi frame) để tránh lag Engine render
+	var t_rem_start = Time.get_ticks_usec()
 	var chunks_removed = _process_removal_queue()
+	_t_process_other += (Time.get_ticks_usec() - t_rem_start)
 	
 	# T\u1ed0I \u01afU CRITICAL: Gi\u1ea3i ph\u00f3ng h\u00e0ng \u0111\u1ee3i Prop t\u1eebng t\u00ed (tr\u00e1nh Physics Server b\u1ecb qu\u00e1 t\u1ea3i 1 frame)
 	if not _pending_props.is_empty():
@@ -666,39 +723,48 @@ func _process(delta):
 			var p = _pending_props.pop_front()
 			_add_rotation_test_object(p["parent"], p["center"], p["size"], p["type"])
 	
-	# T\u1ed0I \u01afU CRITICAL: Distance-based Fade thay th\u1ebf Area2D per-prop
+	# COMPONENT C: Distance-based Fade dùng Spatial Hash (O(1) với radius nhỏ)
 	_fade_check_timer += delta
 	if _fade_check_timer >= FADE_CHECK_INTERVAL:
+		var t_fade_start = Time.get_ticks_usec()
 		_fade_check_timer = 0.0
 		if not _cached_player or not is_instance_valid(_cached_player):
 			_cached_player = get_tree().get_first_node_in_group("player")
 		if _cached_player:
 			var p_pos = _cached_player.global_position
-			for pivot in _static_objects.keys():
+			# Query chỉ cells xưng quanh player (bán kính 1 cell = 1000px)
+			var nearby = _spatial_query(p_pos, SPATIAL_CELL)
+			for pivot in nearby:
 				if not is_instance_valid(pivot): continue
 				var dist_sq = pivot.global_position.distance_squared_to(p_pos)
 				var building_ref = pivot.get_meta("building_ref", null)
 				if building_ref and is_instance_valid(building_ref):
-					# Ngưỡng khoảng cách: ~550px (khoảng 1 tile)
 					_fade_building(building_ref, 0.2 if dist_sq < 302500 else 1.0)
-	
+		_t_process_other += (Time.get_ticks_usec() - t_fade_start)
+
 	var t_chunk = Time.get_ticks_usec() - t_chunk_start
 	
 	# PROFILING: Log chi tiết khi cực kỳ chậm (>25ms)
 	var total_process = Time.get_ticks_usec() - start_time
 	var frame_time = Time.get_ticks_msec() - frame_start
 	
-	if frame_time > 25:
-		print("[SLOW FRAME] Total: %dms | Script: %.2fms | Noise: %.2fms | Tiles: %.2fms | Nodes: %.2fms | Physics: %.2fms" % [
+	if frame_time > 16: # 16ms = ngưỡng không đạt 60 FPS
+		print("[SLOW FRAME] Total: %dms | Script: %.2fms | Noise: %.1fms | Tiles: %.1fms | Objects: %.1fms | Other: %.1fms" % [
 			frame_time, 
 			total_process / 1000.0,
 			_t_noise / 1000.0,
 			_t_tiles / 1000.0,
 			_t_objects / 1000.0,
-			_t_physics_reg / 1000.0
+			_t_process_other / 1000.0
 		])
-		# Reset bộ đếm sau khi log
-		_t_noise = 0; _t_tiles = 0; _t_objects = 0; _t_physics_reg = 0
+		
+	if frame_time > 33: # 33ms = ngưỡng không đạt 30 FPS (Critical)
+		print("[ALERT] Critical FPS Drop: %.2f (%d ms) | NGUYÊN NHÂN: Noise: %.1fms, Tiles: %.1fms, Objects: %.1fms, Other: %.1fms" % [
+			current_fps, frame_time, _t_noise/1000.0, _t_tiles/1000.0, _t_objects/1000.0, _t_process_other/1000.0
+		])
+		
+	# Reset bộ đếm sau khi log
+	_t_noise = 0; _t_tiles = 0; _t_objects = 0; _t_physics_reg = 0; _t_process_other = 0
 
 func _update_ui_labels():
 	if not _lbl_2d_scale or not _2d_scale_slider: return
@@ -735,10 +801,36 @@ func _update_debug_labels(fps: float):
 		var cp = camera.global_position
 		var tp = _temp_layer.local_to_map(_temp_layer.to_local(cp))
 		var chunk_p = Vector2i(floorf(tp.x / float(CHUNK_SIZE)), floorf(tp.y / float(CHUNK_SIZE)))
-		_ui_chunk_time.text = "XYZ: %.1f, %.1f | Chunk: %d,%d" % [cp.x, cp.y, chunk_p.x, chunk_p.y]
+		
+		# Tính toán Biome tại chỗ
+		var n = _noise.get_noise_2d(tp.x, tp.y) - 0.1
+		var t = _temp_noise.get_noise_2d(tp.x, tp.y)
+		var m = _moisture_noise.get_noise_2d(tp.x, tp.y)
+		var b = (_biome_noise.get_noise_2d(tp.x, tp.y) + 1.0) / 2.0
+		var b_name = _get_biome_name_debug(n, t, m, b)
+		
+		_ui_chunk_time.text = "Coordinate: %.0f, %.0f | Tile: %d, %d | Chunk: %d,%d\nBiome: %s" % [cp.x, cp.y, tp.x, tp.y, chunk_p.x, chunk_p.y, b_name]
 		
 	if _ui_queue_lbl:
 		_ui_queue_lbl.text = "Hàng đợi (Vẽ/Xóa): %d / %d" % [_generation_queue.size(), _removal_queue.size()]
+
+func _get_biome_name_debug(n_val, t_val, m_val, b_val):
+	if n_val < -0.4: return "Biển sâu (Deep Sea)"
+	if n_val < -0.32: return "Bờ biển (Beach)"
+	
+	var is_hot = t_val > 0.3
+	var is_dry = m_val < -0.1
+	var is_moist = m_val > 0.2
+	
+	if is_hot:
+		if is_dry: return "Sa mạc (Desert)"
+		if is_moist: return "Rừng nhiệt đới (Tropical Jungle)"
+		return "Savanna"
+	else:
+		if is_dry: return "Đồng cỏ khô (Dry Steppe)"
+		if is_moist: return "Rừng ôn đới (Temperate Forest)"
+		if b_val > 0.7: return "Rừng hoa (Flowery Field)"
+		return "Đồng cỏ (Plains)"
 
 func _update_ghost_position():
 	if not _temp_layer: return
@@ -796,32 +888,24 @@ func update_chunks(immediate: bool = false):
 	
 	# TÍNH TOÁN TẦM NHÌN ĐỘNG (Dynamic Sight) DỰA TRÊN ZOOM
 	var zoom_factor = 1.0 / camera.zoom.x
+	# GIỚI HẠN THẮT CHẶT: Tầm nhìn tối tối đa 12 chunk (đủ cho 1080p zoom out)
 	var effective_dist = clampi(ceili(RENDER_DISTANCE * zoom_factor), RENDER_DISTANCE, 12)
 	
-	# 1. TÌM CHUNK MỚI THEO HÌNH XOÁY (Spiral Order - Ưu tiên tâm)
+	# 1. TÌM CHUNK MỚI THEO HÌNH XOÁY (O(N^2) Optimized)
 	for r in range(effective_dist + 1):
+		# Duyệt hàng trên và hàng dưới
 		for dx in range(-r, r + 1):
-			for dy in range(-r, r + 1):
-				# Chỉ xử lý các ô ở vành đai ngoài cùng của bán kính r hiện tại
-				if abs(dx) == r or abs(dy) == r:
-					var cp = cur_c + Vector2i(dx, dy)
-					
-					# TỐI ƯU CỰC ĐỘ (O1): Hủy xóa bằng cách xóa khỏi Set. 
-					# Hàng đợi sẽ tự động bỏ qua khi pop ra mà không thấy trong Set.
-					if _removal_set.has(cp):
-						_removal_set.erase(cp)
-						continue
-					
-					if not chunks.has(cp) and not _generation_set.has(cp): 
-						_generation_queue.push_back(cp)
-						_generation_set[cp] = true
-						# KÍCH HOẠT TÍNH TOÁN NOISE TRONG NỀN (THREADED)
-						_trigger_background_noise(cp)
-				
+			_check_and_add_chunk(cur_c + Vector2i(dx, r))
+			if r > 0: _check_and_add_chunk(cur_c + Vector2i(dx, -r))
+		# Duyệt cột trái và cột phải (tránh các góc đã duyệt ở trên)
+		for dy in range(-r + 1, r):
+			_check_and_add_chunk(cur_c + Vector2i(r, dy))
+			_check_and_add_chunk(cur_c + Vector2i(-r, dy))
+	
 	if immediate:
 		_process_generation_queue(999999) 
 
-	# 2. TÌM CHUNK CŨ ĐỂ XÓA (Buffer Zone tỉ lệ thuận với Dynamic Sight)
+	# 2. TÌM CHUNK CŨ ĐỂ XÓA (Buffer Zone)
 	var removal_dist = effective_dist + 2
 	for cp in chunks.keys():
 		if abs(cp.x - cur_c.x) > removal_dist or abs(cp.y - cur_c.y) > removal_dist:
@@ -830,6 +914,17 @@ func update_chunks(immediate: bool = false):
 				_removal_set[cp] = true
 	
 	_t_physics_reg += (Time.get_ticks_usec() - t_update_start)
+
+func _check_and_add_chunk(cp: Vector2i):
+	# TỐI ƯU: Hủy xóa bằng cách xóa khỏi Set. 
+	if _removal_set.has(cp):
+		_removal_set.erase(cp)
+		return
+		
+	if not chunks.has(cp) and not _generation_set.has(cp): 
+		_generation_queue.push_back(cp)
+		_generation_set[cp] = true
+		_trigger_background_noise(cp)
 
 func _create_chunk_node(cpos: Vector2i):
 	var t_obj_start = Time.get_ticks_usec()
@@ -842,7 +937,54 @@ func _create_chunk_node(cpos: Vector2i):
 	_t_objects += (Time.get_ticks_usec() - t_obj_start)
 	return chunk_node
 		
-# Logic vẽ gạch đã được chuyển sang _process_generation_queue để tránh lag (Time-Slicing)
+# --- CHỨC NĂNG DỊCH CHUYỂN BIOME (SPIRAL SEARCH) ---
+func teleport_to_nearest_biome(type: String):
+	if not camera: return
+	print("[TELEPORT] Đang tìm kiếm Biome: ", type)
+	
+	var start_c = Vector2i(floorf(camera.global_position.x / (CHUNK_SIZE * 16)), floorf(camera.global_position.y / (CHUNK_SIZE * 16)))
+	var found = false
+	var target_pos = Vector2.ZERO
+	
+	# Quét rộng ra 50 chunk xung quanh (Bản kính lớn để tìm vùng hiếm)
+	for r in range(1, 50):
+		for dx in range(-r, r + 1):
+			for dy in range(-r, r + 1):
+				if abs(dx) == r or abs(dy) == r:
+					var cp = start_c + Vector2i(dx, dy)
+					var gx = cp.x * CHUNK_SIZE * 16
+					var gy = cp.y * CHUNK_SIZE * 16
+					
+					# Sample Noise tại tâm của chunk đó
+					var n = _noise.get_noise_2d(gx, gy) - 0.35
+					if n < -0.3: continue # Bỏ qua biển
+					
+					var t = _temp_noise.get_noise_2d(gx, gy)
+					var m = _moisture_noise.get_noise_2d(gx, gy)
+					var b = (_biome_noise.get_noise_2d(gx, gy) + 1.0) / 2.0
+					
+					var match_found = false
+					match type:
+						"Desert": match_found = t > 0.3 and m < -0.2
+						"Jungle": match_found = t > 0.3 and m > 0.3
+						"Snowy":  match_found = t < -0.2 and m < -0.2
+						"Taiga":  match_found = t < -0.2 and m > 0.3
+						"Plains": match_found = abs(t) < 0.2 and abs(m) < 0.2
+						"Volcano": match_found = b > 0.95
+					
+					if match_found:
+						target_pos = Vector2(gx, gy)
+						found = true
+						break
+			if found: break
+		if found: break
+		
+	if found:
+		print("[TELEPORT] Đã tìm thấy! Dịch chuyển tới: ", target_pos)
+		camera.global_position = target_pos
+		update_chunks(true) # Force cập nhật ngay lập tức
+	else:
+		print("[TELEPORT] Không tìm thấy Biome này trong phạm vi 50 chunks.")
 
 func _process_generation_queue(budget: int) -> int:
 	var start_time = Time.get_ticks_usec()
@@ -878,13 +1020,24 @@ func _process_generation_queue(budget: int) -> int:
 		_noise_mutex.unlock()
 		_t_noise += (Time.get_ticks_usec() - t_noise_start)
 		
-		# Nếu chưa có Noise (đang tính trong thread), bỏ qua chunk này để làm sau
+		# Nếu chưa có Noise (đang tính trong thread), BỎ QUA HOÀN TOÀN
+		# Đừng tạo Node chunk ở đây vì sẽ bị lỗi giá trị mặc định (Sand)
 		if not cached_noise:
-			_trigger_background_noise(_current_gen_chunk) # Đảm bảo đã được trigger
-			_generation_queue.push_back(_current_gen_chunk) # Đẩy lại vào cuối hàng đợi
-			_generation_set[_current_gen_chunk] = true
+			_trigger_background_noise(_current_gen_chunk)
+			_generation_queue.push_back(_current_gen_chunk)
 			_current_gen_chunk = Vector2i(-999, -999)
 			continue
+		
+		# COMPONENT D: Local variable cache — tránh double dict lookup trong hot loop
+		# Thay vì cached_noise["terrain"][idx] (2 lookups) → dùng _cn_terrain[idx] (1 access)
+		var _cn_terrain = cached_noise["terrain"]
+		var _cn_forest  = cached_noise["forest"]
+		var _cn_river   = cached_noise["river"]
+		var _cn_temp    = cached_noise["temp"]
+		var _cn_moist   = cached_noise["moisture"]
+		var _cn_riv_mask = cached_noise["riv_mask"]
+		var _cn_biome   = cached_noise["biome"]
+		var _cn_scatter = cached_noise["scatter"]
 		
 		while _current_tile_idx < CHUNK_SIZE * CHUNK_SIZE:
 			# Kiểm tra cả số lượng và thời gian thực hiện
@@ -898,13 +1051,15 @@ func _process_generation_queue(budget: int) -> int:
 			var ly = _current_tile_idx / CHUNK_SIZE
 			var gpos = s + Vector2i(lx, ly)
 			
-			var n_val = cached_noise["terrain"][_current_tile_idx] - 0.35 # SIÊU LỤC ĐỊA: Giảm sụt lún để đất liền dính nhau hơn
-			var forest_val = cached_noise["forest"][_current_tile_idx]
-			var river_val = cached_noise["river"][_current_tile_idx]
-			var temp_val = cached_noise["temp"][_current_tile_idx]
-			var moist_val = cached_noise["moisture"][_current_tile_idx]
-			var b_val = (cached_noise["biome"][_current_tile_idx] + 1.0) / 2.0 # Chuẩn hóa về [0, 1]
-			var scatter_val = (cached_noise["scatter"][_current_tile_idx] + 1.0) / 2.0
+			# ĐỌC NOISE (Offset -0.1 để lục địa rộng hơn)
+			var n_val      = _cn_terrain[_current_tile_idx] - 0.1
+			var forest_val = _cn_forest[_current_tile_idx]
+			var river_val  = _cn_river[_current_tile_idx]
+			var r_mask_val = (_cn_riv_mask[_current_tile_idx] + 1.0) / 2.0 # Chuẩn hóa 0..1
+			var temp_val   = _cn_temp[_current_tile_idx]
+			var moist_val  = _cn_moist[_current_tile_idx]
+			var b_val      = (_cn_biome[_current_tile_idx] + 1.0) / 2.0
+			var scatter_val= (_cn_scatter[_current_tile_idx] + 1.0) / 2.0
 			
 			var sid = 1 # Mặc định: Cỏ
 			var prop_id = -1 # Mặc định: Không có vật thể
@@ -920,24 +1075,16 @@ func _process_generation_queue(budget: int) -> int:
 				if n_val < -0.4:
 					sid = 21 # Salt Water (Mặn)
 				elif n_val < -0.32:
-					sid = 2 # Cát ven biển
+					sid = 2 # Tất cả bờ biển đều là Cát vàng (Sand)
 				
 				# 2. MA TRẬN KHÍ HẬU (Nhiệt độ x Độ ẩm)
 				else:
-					var is_cold = temp_val < -0.2
 					var is_hot = temp_val > 0.3
-					var is_dry = moist_val < -0.2
-					var is_wet = moist_val > 0.3
+					var is_dry = moist_val < -0.1
+					var is_wet = moist_val > 0.2
 					
 					# PHÂN LOẠI BIOME CHÍNH
-					if is_cold:
-						if is_dry: # Băng đăng (Snowy Plains)
-							sid = 1 # Dùng Grass tạm (Cần thêm Snow tile sau)
-							if scatter_val > 0.95: prop_id = 30 # Đá
-						else: # Rừng Taiga (Lạnh & Ướt)
-							sid = 12 # Mud/Dark ground
-							if forest_val > 0.2: prop_id = 17 # Maple (nhìn giống cây ôn đới)
-					elif is_hot:
+					if is_hot:
 						if is_dry: # Sa mạc (Desert)
 							sid = 2 # Sand
 							if forest_val > 0.7: prop_id = 20 # Cactus
@@ -957,16 +1104,18 @@ func _process_generation_queue(budget: int) -> int:
 							if forest_val > 0.9: prop_id = 6
 					
 					# 3. CÁC BIOME SÔNG NGÒI (Natural Rivers)
-					# Sông hồ tập trung ở ven biển, thưa thớt dần khi vào sâu trong đất liền
-					var river_moist_factor = clamp(moist_val + 0.4, 0.0, 1.0)
-					var coastal_mask = clamp(1.0 - n_val * 2.5, 0.0, 1.0) # Triệt tiêu sông hồ khi n_val cao (vào sâu đất liền)
-					var river_width_base = (0.03 + (scatter_val * 0.04)) * coastal_mask
-					var dynamic_river_threshold = river_width_base * river_moist_factor
+					# TỐI ƯU: Chỉ cho phép sông ở vùng có mặt nạ lưu vực (River Mask)
+					# Sông to dần ở trung tâm lưu vực và biến mất ở rìa
+					var watershed_factor = smoothstep(0.4, 0.7, r_mask_val) 
 					
-					if abs(river_val) < dynamic_river_threshold and n_val > -0.4:
+					var river_moist_factor = clamp(moist_val + 0.5, 0.0, 1.2)
+					var coastal_mask = clamp(1.2 - n_val * 3.5, 0.0, 1.0) # Triệt tiêu sông nhanh hơn khi lên cao
+					var river_width_base = (0.02 + (scatter_val * 0.03)) * coastal_mask
+					var dynamic_river_threshold = river_width_base * river_moist_factor * watershed_factor
+					
+					if watershed_factor > 0.01 and abs(river_val) < dynamic_river_threshold and n_val > -0.4:
 						sid = 3 # Nước ngọt thường
-						if is_cold: sid = 3
-						elif is_wet: sid = 16 # Swamp ven sông
+						if is_wet: sid = 16 # Swamp ven sông
 					
 					# 4. ĐỊA HÌNH ĐẶC BIỆT (Cellular Noise)
 					# Dùng b_val để "chèn" các vùng đặc biệt vào giữa các lục địa
@@ -994,6 +1143,17 @@ func _process_generation_queue(budget: int) -> int:
 			var t_tile_base = Time.get_ticks_usec()
 			layer.set_cell(gpos, sid, Vector2i(0, 0))
 			_t_tiles += (Time.get_ticks_usec() - t_tile_base)
+			
+			# CHẨN ĐOÁN SAU TELEPORT (Sửa lỗi làm tròn số âm bằng cách check bán kính 2 ô)
+			if _pending_teleport_tile.distance_to(Vector2(gpos)) < 1.5:
+				var actual_biome = _get_biome_name_debug(n_val, temp_val, moist_val, b_val)
+				var match_status = "[MATCH]" if actual_biome == _expected_biome_after_teleport else "[MISMATCH]"
+				
+				print("[DEBUG-MAP] Arrival Check | Tile: %s" % gpos)
+				print("    -> MAP Expected: %s" % _expected_biome_after_teleport)
+				print("    -> GAME Actual:   %s %s" % [actual_biome, match_status])
+				print("    -> Details: Height: %.2f | Temp: %.2f | Moist: %.2f" % [n_val, temp_val, moist_val])
+				# Lưu ý: Không reset _pending_teleport_tile ngay lập tức để in được vài ô xung quanh
 			
 			# ĐẶT VẬT THỂ (PROPS)
 			if prop_id >= 0:
@@ -1082,7 +1242,12 @@ func _process_removal_queue() -> int:
 					_lighting_objects.erase(obj)
 					_static_objects.erase(obj)
 					_active_lighting_objects.erase(obj)
+					_spatial_unregister(obj) # VÁ LỖI: Xóa khỏi spatial hash để tránh rò rỉ rác
 			_chunk_objects.erase(cp)
+		
+		# COMPONENT B: Xóa MultiMesh instances của chunk này
+		if _tree_renderer != null:
+			_tree_renderer.remove_chunk(cp)
 		
 		chunks[cp].queue_free()
 		chunks.erase(cp)
@@ -1092,6 +1257,22 @@ func _process_removal_queue() -> int:
 
 func _add_rotation_test_object(parent_node: Node2D, center: Vector2, b_size: Vector2i, type: String):
 	var s2d = _2d_scale_slider.value if _2d_scale_slider else 1.0
+	
+	# COMPONENT B: MultiMesh Fast Path cho cây thiên nhiên (1 draw call!)
+	if _tree_renderer != null and type in MULTIMESH_TREE_TYPES:
+		# Tính chunk pos để đăng ký vào renderer (phục vụ remove khi unload)
+		var cp_f = _temp_layer.local_to_map(_temp_layer.to_local(center))
+		var chunk_pos = Vector2i(floorf(float(cp_f.x) / CHUNK_SIZE), floorf(float(cp_f.y) / CHUNK_SIZE))
+		
+		# Lấy y_offset từ _tree_defs nếu có
+		var y_off = -2373.0
+		if _tree_defs.has(type):
+			y_off = _tree_defs[type]["offset"].y
+		
+		_tree_renderer.add_tree(type, center, s2d, y_off, chunk_pos)
+		return  # Không tạo Sprite2D nữa — done!
+	
+	# FALLBACK: Sprite2D path cho công trình (windmill, core, camfire) và unknown types
 	# 1. TẠO PIVOT QUẢN LÝ
 	var pivot = Node2D.new()
 	pivot.name = "Pivot_Building_" + type
@@ -1216,10 +1397,16 @@ func _add_rotation_test_object(parent_node: Node2D, center: Vector2, b_size: Vec
 		notifier.screen_exited.connect(func(): _active_lighting_objects.erase(pivot))
 		# Kiểm tra ban đầu
 		if notifier.is_on_screen(): _active_lighting_objects[pivot] = true
+		_spatial_register(pivot)  # COMPONENT C: Đăng ký vào spatial hash
 	else:
 		_static_objects[pivot] = true
+		_spatial_register(pivot)  # COMPONENT C: Đăng ký vào spatial hash
 
 func _fade_building(node: CanvasItem, target_alpha: float):
+	# TỐI ƯU: Không tạo tween nếu độ mờ đã khớp (Tránh Tween Storm)
+	if abs(node.modulate.a - target_alpha) < 0.01:
+		return
+		
 	var tween = create_tween()
 	tween.tween_property(node, "modulate:a", target_alpha, 0.3).set_trans(Tween.TRANS_SINE)
 
@@ -1339,50 +1526,73 @@ func _trigger_background_noise(cpos: Vector2i):
 	_noise_mutex.unlock()
 	
 	# Đẩy công việc vào hàng đợi xử lý của WorkerThreadPool
-	if _noise == null or _forest_noise == null or _river_noise == null or _biome_noise == null:
+	if _noise == null or _temp_noise == null or _moisture_noise == null:
+		print("[ERROR] Noise objects not initialized in Generator!")
 		return
 		
-	WorkerThreadPool.add_task(_thread_generate_noise.bind(cpos, _noise, _forest_noise, _river_noise, _biome_noise, _mist_noise))
+	WorkerThreadPool.add_task(_thread_generate_noise.bind(
+		cpos, _noise, _forest_noise, _river_noise, _biome_noise, 
+		_mist_noise, _river_mask_noise, _temp_noise, _moisture_noise, _scatter_noise
+	))
 
-func _thread_generate_noise(cpos: Vector2i, noise: FastNoiseLite, forest_noise: FastNoiseLite, river_noise: FastNoiseLite, biome_noise: FastNoiseLite, mist_noise: FastNoiseLite):
+func _thread_generate_noise(cpos, terrain_n, forest_n, river_n, biome_n, mist_n, riv_mask_n, temp_n, moist_n, scatter_n):
 	var s = cpos * CHUNK_SIZE
-	var terrain_data = []
-	var forest_data = []
-	var river_data = []
-	var temp_data = []
-	var moist_data = []
-	var biome_data = []
-	var mist_data = []
-	var scatter_data = []
+	var total = CHUNK_SIZE * CHUNK_SIZE
 	
-	# Tính toán Noise ổn định trong luồng phụ
+	var terrain_data = PackedFloat32Array(); terrain_data.resize(total)
+	var forest_data  = PackedFloat32Array(); forest_data.resize(total)
+	var river_data   = PackedFloat32Array(); river_data.resize(total)
+	var temp_data    = PackedFloat32Array(); temp_data.resize(total)
+	var moist_data   = PackedFloat32Array(); moist_data.resize(total)
+	var riv_mask_data = PackedFloat32Array(); riv_mask_data.resize(total)
+	var biome_data   = PackedFloat32Array(); biome_data.resize(total)
+	var mist_data    = PackedFloat32Array(); mist_data.resize(total)
+	var scatter_data = PackedFloat32Array(); scatter_data.resize(total)
+	
+	var terrain_sum = 0.0
+	var idx = 0
 	for ly in range(CHUNK_SIZE):
 		for lx in range(CHUNK_SIZE):
 			var gx = s.x + lx
 			var gy = s.y + ly
-			terrain_data.append(noise.get_noise_2d(gx, gy))
-			forest_data.append(forest_noise.get_noise_2d(gx, gy))
-			river_data.append(river_noise.get_noise_2d(gx, gy))
-			temp_data.append(_temp_noise.get_noise_2d(gx, gy))
-			moist_data.append(_moisture_noise.get_noise_2d(gx, gy))
-			biome_data.append(biome_noise.get_noise_2d(gx, gy))
-			mist_data.append(mist_noise.get_noise_2d(gx, gy))
-			scatter_data.append(_scatter_noise.get_noise_2d(gx, gy))
+			
+			var nv = terrain_n.get_noise_2d(gx, gy)
+			terrain_data[idx] = nv
+			terrain_sum += nv
+			
+			forest_data[idx]   = forest_n.get_noise_2d(gx, gy)
+			river_data[idx]    = river_n.get_noise_2d(gx, gy)
+			riv_mask_data[idx] = riv_mask_n.get_noise_2d(gx, gy)
+			temp_data[idx]     = temp_n.get_noise_2d(gx, gy)
+			moist_data[idx]    = moist_n.get_noise_2d(gx, gy)
+			biome_data[idx]    = biome_n.get_noise_2d(gx, gy)
+			mist_data[idx]     = mist_n.get_noise_2d(gx, gy)
+			scatter_data[idx]  = scatter_n.get_noise_2d(gx, gy)
+			idx += 1
+	
+	var avg_terrain = terrain_sum / total
 	
 	# Ghi dữ liệu vào Cache an toàn
 	_noise_mutex.lock()
 	_noise_cache[cpos] = {
 		"terrain": terrain_data,
-		"forest": forest_data,
-		"river": river_data,
-		"temp": temp_data,
-		"moisture": moist_data,
-		"biome": biome_data,
-		"mist": mist_data,
+		"forest":  forest_data,
+		"river":   river_data,
+		"riv_mask":riv_mask_data,
+		"temp":    temp_data,
+		"moisture":moist_data,
+		"biome":   biome_data,
+		"mist":    mist_data,
 		"scatter": scatter_data
 	}
 	_pending_noise_chunks.erase(cpos)
 	_noise_mutex.unlock()
+	
+	if avg_terrain == 0.0:
+		print("[WARNING-THREAD] Chunk ", cpos, " generated with all 0.0 terrain noise!")
+	else:
+		# print("[DEBUG-THREAD] Chunk ", cpos, " cached. Avg Terrain: ", avg_terrain)
+		pass
 func _load_offset_from_json(path: String, texture: Texture2D, current_offset: Vector2) -> Vector2:
 	if not FileAccess.file_exists(path): return current_offset
 	var file = FileAccess.open(path, FileAccess.READ)
@@ -1417,7 +1627,79 @@ func _toggle_world_map(active: bool):
 			map_root.view_center = Vector2(tp.x, tp.y)
 			map_root.view_zoom = 1.0 # Reset zoom khi mở
 			map_root.set_player_pos(Vector2(tp.x, tp.y)) # Cập nhật chấm đỏ
+			
+			# Gán player để map tự cập nhật real-time
+			map_root.player_node = camera # Camera thường đi kèm với nhân vật
+			
 			map_root.setup(_noise, _forest_noise, _river_noise, _temp_noise, _moisture_noise, _biome_noise, _scatter_noise)
 		else:
 			# Có thể thêm logic ẩn cursor nếu cần
 			pass
+
+func _on_map_teleport_requested(target_tile_pos: Vector2, expected_biome: String):
+	print("[SYSTEM-DEBUG] Received teleport_requested signal in Generator!")
+	_expected_biome_after_teleport = expected_biome
+	var player = get_tree().get_first_node_in_group("player")
+	var target_node = player if player else camera
+	
+	print("[DEBUG-TP] Tile Clicked: ", target_tile_pos)
+	
+	if !target_node: 
+		print("[MAP] Lỗi: Không tìm thấy Player hoặc Camera để dịch chuyển!")
+		return
+	
+	# 1. Chuyển đổi tọa độ Tile sang tọa độ World (Pixel) chính xác (Hỗ trợ 500x250 Isometric)
+	var world_pos = _temp_layer.map_to_local(Vector2i(target_tile_pos))
+	print("[DEBUG-TP] Target World Pos: ", world_pos)
+	print("[DEBUG-TP] Moving node: ", target_node.name)
+	
+	# 2. Di chuyển Player/Camera và ép đồng bộ Transform
+	target_node.global_position = world_pos
+	if target_node is CharacterBody2D:
+		target_node.force_update_transform()
+	
+	# Cập nhật camera ngay lập tức
+	if camera and is_instance_valid(camera):
+		camera.global_position = world_pos
+		camera.force_update_scroll()
+		camera.reset_smoothing() # Nếu có smoothing, reset để tránh trượt
+		print("[DEBUG-TP] Camera forced update to: ", camera.global_position)
+	
+	# 3. Kích hoạt chẩn đoán gạch thực tế tại điểm đến
+	_pending_teleport_tile = target_tile_pos
+	
+	# 4. Ép cập nhật lại toàn bộ Chunk xung quanh vị trí mới
+	call_deferred("update_chunks", true) 
+	
+	# 5. Đóng bản đồ và tiếp tục game
+	_toggle_world_map(false)
+	print("[MAP] Dịch chuyển THÀNH CÔNG tới: ", world_pos)
+
+# --- COMPONENT C: SPATIAL HASH HELPERS ---
+
+func _spatial_register(node: Node2D):
+	var cell = Vector2i(node.global_position / SPATIAL_CELL)
+	if not _spatial_hash.has(cell):
+		_spatial_hash[cell] = []
+	_spatial_hash[cell].append(node)
+
+func _spatial_unregister(node: Node2D):
+	var cell = Vector2i(node.global_position / SPATIAL_CELL)
+	var arr = _spatial_hash.get(cell)
+	if arr:
+		arr.erase(node)
+		if arr.is_empty():
+			_spatial_hash.erase(cell)
+
+## Query tất cả objects trong bán kính radius quanh pos — O(cells_checked) không phải O(N)
+func _spatial_query(pos: Vector2, radius: float) -> Array:
+	var center_cell = Vector2i(pos / SPATIAL_CELL)
+	var cells_r = ceili(radius / SPATIAL_CELL)
+	var result = []
+	for dx in range(-cells_r, cells_r + 1):
+		for dy in range(-cells_r, cells_r + 1):
+			var cell = center_cell + Vector2i(dx, dy)
+			var arr = _spatial_hash.get(cell)
+			if arr:
+				result.append_array(arr)
+	return result
