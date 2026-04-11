@@ -1,0 +1,202 @@
+[gd_scene load_steps=28 format=3]
+
+[ext_resource type="Script" path="res://scripts/entities/player.gd" id="1_player"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/walk/player_walk_North_left.png" id="2_n_l"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/walk/player_walk_North_right.png" id="3_n_r"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/walk/player_walk_South_left.png" id="4_s_l"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/walk/player_walk_South_right.png" id="5_s_r"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/walk/player_walk_East_left.png" id="6_e_l"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/walk/player_walk_East_right.png" id="7_e_r"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/walk/player_walk_West_left.png" id="8_w_l"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/walk/player_walk_West_right.png" id="9_w_r"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/walk/player_walk_NorthEast_left.png" id="10_ne_l"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/walk/player_walk_NorthEast_right.png" id="11_ne_r"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/walk/player_walk_NorthWest_left.png" id="12_nw_l"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/walk/player_walk_NorthWest_right.png" id="13_nw_r"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/walk/player_walk_SouthEast_left.png" id="14_se_l"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/walk/player_walk_SouthEast_right.png" id="15_se_r"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/walk/player_walk_SouthWest_left.png" id="16_sw_l"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/walk/player_walk_SouthWest_right.png" id="17_sw_r"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/idle/player_idle_North.png" id="18_idle_n"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/idle/player_idle_South.png" id="19_idle_s"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/idle/player_idle_East.png" id="20_idle_e"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/idle/player_idle_West.png" id="21_idle_w"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/idle/player_idle_NorthEast.png" id="22_idle_ne"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/idle/player_idle_NorthWest.png" id="23_idle_nw"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/idle/player_idle_SouthEast.png" id="24_idle_se"]
+[ext_resource type="Texture2D" path="res://assets/actors/player/default_male/idle/player_idle_SouthWest.png" id="25_idle_sw"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_player"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("18_idle_n")
+}],
+"loop": true,
+"name": &"idle_N",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("19_idle_s")
+}],
+"loop": true,
+"name": &"idle_S",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("20_idle_e")
+}],
+"loop": true,
+"name": &"idle_E",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("21_idle_w")
+}],
+"loop": true,
+"name": &"idle_W",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("22_idle_ne")
+}],
+"loop": true,
+"name": &"idle_NE",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("23_idle_nw")
+}],
+"loop": true,
+"name": &"idle_NW",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("24_idle_se")
+}],
+"loop": true,
+"name": &"idle_SE",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("25_idle_sw")
+}],
+"loop": true,
+"name": &"idle_SW",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("10_ne_l")
+}, {
+"duration": 1.0,
+"texture": ExtResource("11_ne_r")
+}],
+"loop": true,
+"name": &"walk_NE",
+"speed": 8.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("12_nw_l")
+}, {
+"duration": 1.0,
+"texture": ExtResource("13_nw_r")
+}],
+"loop": true,
+"name": &"walk_NW",
+"speed": 8.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("14_se_l")
+}, {
+"duration": 1.0,
+"texture": ExtResource("15_se_r")
+}],
+"loop": true,
+"name": &"walk_SE",
+"speed": 8.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("16_sw_l")
+}, {
+"duration": 1.0,
+"texture": ExtResource("17_sw_r")
+}],
+"loop": true,
+"name": &"walk_SW",
+"speed": 8.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_n_l")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_n_r")
+}],
+"loop": true,
+"name": &"walk_N",
+"speed": 8.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("4_s_l")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_s_r")
+}],
+"loop": true,
+"name": &"walk_S",
+"speed": 8.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("6_e_l")
+}, {
+"duration": 1.0,
+"texture": ExtResource("7_e_r")
+}],
+"loop": true,
+"name": &"walk_E",
+"speed": 8.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("8_w_l")
+}, {
+"duration": 1.0,
+"texture": ExtResource("9_w_r")
+}],
+"loop": true,
+"name": &"walk_W",
+"speed": 8.0
+}]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_body"]
+radius = 30.0
+height = 100.0
+
+[node name="Player" type="CharacterBody2D" groups=["player"]]
+y_sort_enabled = true
+collision_layer = 2
+script = ExtResource("1_player")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+scale = Vector2(1, 1)
+sprite_frames = SubResource("SpriteFrames_player")
+animation = &"idle_SE"
+offset = Vector2(0, -2400)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -10)
+rotation = 1.5708
+shape = SubResource("CapsuleShape2D_body")

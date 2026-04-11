@@ -1,0 +1,13 @@
+{
+  "id": "handcar",
+  "display_name": "Handcar",
+  "category": "building",
+  "grid_size": [2, 1],
+  "texture_origin": [0, 2373],
+  "properties": {
+    "is_walkable": true,
+    "is_destroyable": true,
+    "build_cost": 50,
+    "speed": 5.0
+  }
+}

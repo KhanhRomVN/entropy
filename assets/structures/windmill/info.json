@@ -1,0 +1,14 @@
+{
+  "id": "windmill",
+  "display_name": "Windmill",
+  "category": "building",
+  "grid_size": [2, 2],
+  "texture_origin": [0, 2373],
+  "visual_offset": [-480, -4750],
+  "properties": {
+    "is_walkable": false,
+    "is_destroyable": true,
+    "build_cost": 100,
+    "animation_speed": 1.0
+  }
+}

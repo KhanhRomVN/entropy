@@ -1,0 +1,196 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/settings_menu.gd" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.1, 0.1, 0.12, 0.95)
+corner_radius_top_left = 20
+corner_radius_bottom_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.4, 1, 0.6, 0.5)
+expand_margin_left = 30.0
+expand_margin_top = 30.0
+expand_margin_right = 30.0
+expand_margin_bottom = 30.0
+
+[node name="SettingsMenu" type="CanvasLayer"]
+process_mode = 3
+layer = 120
+script = ExtResource("1_script")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.5)
+
+[node name="Panel" type="PanelContainer" parent="."]
+custom_minimum_size = Vector2(600, 500)
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="VBox" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Title" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 1, 0.8, 1)
+theme_override_font_sizes/font_size = 28
+text = "CÀI ĐẶT"
+horizontal_alignment = 1
+
+[node name="Tabs" type="TabContainer" parent="Panel/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Graphics" type="ScrollContainer" parent="Panel/VBox/Tabs"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Margin" type="MarginContainer" parent="Panel/VBox/Tabs/Graphics"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="VBox" type="VBoxContainer" parent="Panel/VBox/Tabs/Graphics/Margin"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 15
+
+[node name="RD" type="HBoxContainer" parent="Panel/VBox/Tabs/Graphics/Margin/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/VBox/Tabs/Graphics/Margin/VBox/RD"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Tầm nhìn (Chunks)"
+
+[node name="RenderDistanceSlider" type="HSlider" parent="Panel/VBox/Tabs/Graphics/Margin/VBox/RD" unique_name_in_owner=true]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_vertical = 4
+min_value = 1.0
+max_value = 12.0
+value = 3.0
+
+[node name="RenderDistanceLabel" type="Label" parent="Panel/VBox/Tabs/Graphics/Margin/VBox/RD" unique_name_in_owner=true]
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+text = "3 chunks"
+
+[node name="VSync" type="HBoxContainer" parent="Panel/VBox/Tabs/Graphics/Margin/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/VBox/Tabs/Graphics/Margin/VBox/VSync"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Đồng bộ dọc (V-Sync)"
+
+[node name="VSyncCheckBox" type="CheckBox" parent="Panel/VBox/Tabs/Graphics/Margin/VBox/VSync" unique_name_in_owner=true]
+layout_mode = 2
+
+[node name="FPS" type="HBoxContainer" parent="Panel/VBox/Tabs/Graphics/Margin/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/VBox/Tabs/Graphics/Margin/VBox/FPS"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Giới hạn FPS (0 = Không giới hạn)"
+
+[node name="MaxFPSSlider" type="HSlider" parent="Panel/VBox/Tabs/Graphics/Margin/VBox/FPS" unique_name_in_owner=true]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_vertical = 4
+max_value = 240.0
+step = 10.0
+
+[node name="MaxFPSLabel" type="Label" parent="Panel/VBox/Tabs/Graphics/Margin/VBox/FPS" unique_name_in_owner=true]
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+text = "Unlimited"
+
+[node name="FS" type="HBoxContainer" parent="Panel/VBox/Tabs/Graphics/Margin/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/VBox/Tabs/Graphics/Margin/VBox/FS"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Toàn màn hình"
+
+[node name="FullscreenCheckBox" type="CheckBox" parent="Panel/VBox/Tabs/Graphics/Margin/VBox/FS" unique_name_in_owner=true]
+layout_mode = 2
+
+[node name="Game" type="ScrollContainer" parent="Panel/VBox/Tabs"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Margin" type="MarginContainer" parent="Panel/VBox/Tabs/Game"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="VBox" type="VBoxContainer" parent="Panel/VBox/Tabs/Game/Margin"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 15
+
+[node name="Speed" type="HBoxContainer" parent="Panel/VBox/Tabs/Game/Margin/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/VBox/Tabs/Game/Margin/VBox/Speed"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Tốc độ Camera"
+
+[node name="MoveSpeedSlider" type="HSlider" parent="Panel/VBox/Tabs/Game/Margin/VBox/Speed" unique_name_in_owner=true]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_vertical = 4
+min_value = 100.0
+max_value = 5000.0
+value = 1000.0
+
+[node name="MoveSpeedLabel" type="Label" parent="Panel/VBox/Tabs/Game/Margin/VBox/Speed" unique_name_in_owner=true]
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+text = "1000"
+
+[node name="Debug" type="HBoxContainer" parent="Panel/VBox/Tabs/Game/Margin/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/VBox/Tabs/Game/Margin/VBox/Debug"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Hiện Debug UI (F3)"
+
+[node name="DebugCheckBox" type="CheckBox" parent="Panel/VBox/Tabs/Game/Margin/VBox/Debug" unique_name_in_owner=true]
+layout_mode = 2
+
+[node name="DoneButton" type="Button" parent="Panel/VBox"]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+focus_mode = 0
+text = "HOÀN TẤT"

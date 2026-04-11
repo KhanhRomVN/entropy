@@ -1,0 +1,15 @@
+{
+  "id": "camfire",
+  "display_name": "Campfire",
+  "category": "building",
+  "grid_size": [1, 1],
+  "texture_origin": [0, 2373],
+  "properties": {
+    "is_walkable": false,
+    "is_destroyable": true,
+    "build_cost": 15,
+    "light_range": 2500.0,
+    "light_color": "#ffaa44",
+    "is_lit": true
+  }
+}

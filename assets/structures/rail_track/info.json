@@ -1,0 +1,13 @@
+{
+  "id": "rail_track",
+  "display_name": "Rail Track",
+  "category": "building",
+  "grid_size": [1, 1],
+  "texture_origin": [0, 2373],
+  "properties": {
+    "is_walkable": true,
+    "is_destroyable": true,
+    "build_cost": 20,
+    "flow_direction": "any"
+  }
+}

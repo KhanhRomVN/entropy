@@ -1,0 +1,268 @@
+[gd_resource type="TileSet" load_steps=45 format=3 uid="uid://dd8n6x1y6o5j5"]
+
+[ext_resource type="Texture2D" path="res://assets/tiles/grounds/dirt_block/dirt_block.png" id="1_dirt"]
+[ext_resource type="Texture2D" path="res://assets/tiles/grounds/grass_block/grass_block.png" id="2_grass"]
+[ext_resource type="Texture2D" path="res://assets/tiles/grounds/sand_block/sand_block.png" id="3_sand"]
+[ext_resource type="Texture2D" path="res://assets/tiles/fluids/water_block/water_block.png" id="4_water"]
+[ext_resource type="Texture2D" path="res://assets/tiles/grounds/stone_block/stone_block.png" id="5_stone"]
+[ext_resource type="Texture2D" path="res://assets/props/plants/trees/oak_tree/oak_tree.png" id="6_apple"]
+[ext_resource type="Texture2D" path="res://assets/tiles/grounds/bazan_block/bazan_block.png" id="7_dead"]
+[ext_resource type="Texture2D" path="res://assets/tiles/grounds/bazan_block/bazan_block.png" id="8_bazan"]
+[ext_resource type="Texture2D" path="res://assets/tiles/grounds/laterite_dirt_block/laterite_dirt_block.png" id="10_laterite"]
+[ext_resource type="Texture2D" path="res://assets/tiles/grounds/peat_block/peat_block.png" id="11_peat"]
+[ext_resource type="Texture2D" path="res://assets/tiles/grounds/pebble_block/pebble_block.png" id="12_pebble"]
+[ext_resource type="Texture2D" path="res://assets/tiles/fluids/mud_block/mud_block.png" id="13_mud"]
+[ext_resource type="Texture2D" path="res://assets/tiles/fluids/oil_block/oil_block.png" id="14_oil"]
+[ext_resource type="Texture2D" path="res://assets/tiles/fluids/quicksand_block/quicksand_block.png" id="15_quicksand"]
+[ext_resource type="Texture2D" path="res://assets/tiles/fluids/red_mud_block/red_mud_block.png" id="16_red_mud"]
+[ext_resource type="Texture2D" path="res://assets/tiles/fluids/swamp_water_block/swamp_water_block.png" id="17_swamp_water"]
+[ext_resource type="Texture2D" path="res://assets/props/plants/trees/maple_tree/maple_tree.png" id="18_maple"]
+[ext_resource type="Texture2D" path="res://assets/props/plants/trees/oak_tree/oak_tree.png" id="19_oak"]
+[ext_resource type="Texture2D" path="res://assets/props/plants/trees/bambo/bambo_1.png" id="20_bamboo"]
+[ext_resource type="Texture2D" path="res://assets/props/plants/trees/cactus/cactus_1.png" id="21_cactus"]
+[ext_resource type="Texture2D" path="res://assets/tiles/fluids/water_salt_block/water_salt_block.png" id="22_salt_water"]
+[ext_resource type="Texture2D" path="res://assets/props/plants/trees/coffee_tree/coffee_tree.png" id="24_coffee"]
+[ext_resource type="Texture2D" path="res://assets/props/plants/trees/cotton_tree/cotton_tree.png" id="25_cotton"]
+[ext_resource type="Texture2D" path="res://assets/tiles/overlays/volcanic_ash_overlay_sheet/volcanic_ash_overlay.png" id="26_volcanic_ash"]
+[ext_resource type="Texture2D" path="res://assets/props/minerals/stone_ore/stone_ore_1.png" id="30_stone_ore"]
+[ext_resource type="Texture2D" path="res://assets/props/minerals/tin_ore/tin_ore_1.png" id="31_tin_ore"]
+[ext_resource type="Texture2D" path="res://assets/props/minerals/gold_ore/gold_ore_1.png" id="32_gold_ore"]
+[ext_resource type="Texture2D" path="res://assets/props/minerals/copper_ore/copper_ore_1.png" id="33_copper_ore"]
+[ext_resource type="Texture2D" path="res://assets/props/minerals/sliver_ore/sliver_ore_1.png" id="34_silver_ore"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_dirt"]
+resource_name = "Dirt"
+texture = ExtResource("1_dirt")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_grass"]
+resource_name = "Grass"
+texture = ExtResource("2_grass")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_sand"]
+resource_name = "Sand"
+texture = ExtResource("3_sand")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_water"]
+resource_name = "Water"
+texture = ExtResource("4_water")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_stone"]
+resource_name = "Stone"
+texture = ExtResource("5_stone")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_apple"]
+resource_name = "AppleTree"
+texture = ExtResource("6_apple")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_dead"]
+resource_name = "DeadBlock"
+texture = ExtResource("7_dead")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_bazan"]
+resource_name = "Bazan"
+texture = ExtResource("8_bazan")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_laterite"]
+resource_name = "Laterite"
+texture = ExtResource("10_laterite")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_peat"]
+resource_name = "Peat"
+texture = ExtResource("11_peat")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_pebble"]
+resource_name = "Pebble"
+texture = ExtResource("12_pebble")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_mud"]
+resource_name = "Mud"
+texture = ExtResource("13_mud")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_oil"]
+resource_name = "Oil"
+texture = ExtResource("14_oil")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_quicksand"]
+resource_name = "Quicksand"
+texture = ExtResource("15_quicksand")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_red_mud"]
+resource_name = "RedMud"
+texture = ExtResource("16_red_mud")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_swamp_water"]
+resource_name = "SwampWater"
+texture = ExtResource("17_swamp_water")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_maple"]
+resource_name = "Maple"
+texture = ExtResource("18_maple")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_coffee"]
+resource_name = "Coffee"
+texture = ExtResource("24_coffee")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_cotton"]
+resource_name = "Cotton"
+texture = ExtResource("25_cotton")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_volcanic_ash"]
+resource_name = "VolcanicAsh"
+texture = ExtResource("26_volcanic_ash")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_oak"]
+resource_name = "OakTree"
+texture = ExtResource("19_oak")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_bamboo"]
+resource_name = "Bamboo"
+texture = ExtResource("20_bamboo")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_cactus"]
+resource_name = "Cactus"
+texture = ExtResource("21_cactus")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_salt_water"]
+resource_name = "SaltWater"
+texture = ExtResource("22_salt_water")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_stone_ore"]
+resource_name = "StoneOre"
+texture = ExtResource("30_stone_ore")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_tin_ore"]
+resource_name = "TinOre"
+texture = ExtResource("31_tin_ore")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_gold_ore"]
+resource_name = "GoldOre"
+texture = ExtResource("32_gold_ore")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_copper_ore"]
+resource_name = "CopperOre"
+texture = ExtResource("33_copper_ore")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_silver_ore"]
+resource_name = "SilverOre"
+texture = ExtResource("34_silver_ore")
+texture_region_size = Vector2i(500, 5000)
+0:0/0 = 0
+0:0/0/texture_origin = Vector2i(0, 2373)
+
+[resource]
+tile_shape = 1
+tile_size = Vector2i(500, 250)
+physics_layer_0/collision_layer = 1
+sources/0 = SubResource("TileSetAtlasSource_dirt")
+sources/1 = SubResource("TileSetAtlasSource_grass")
+sources/2 = SubResource("TileSetAtlasSource_sand")
+sources/3 = SubResource("TileSetAtlasSource_water")
+sources/4 = SubResource("TileSetAtlasSource_stone")
+sources/5 = SubResource("TileSetAtlasSource_apple")
+sources/6 = SubResource("TileSetAtlasSource_dead")
+sources/7 = SubResource("TileSetAtlasSource_bazan")
+sources/9 = SubResource("TileSetAtlasSource_laterite")
+sources/10 = SubResource("TileSetAtlasSource_peat")
+sources/11 = SubResource("TileSetAtlasSource_pebble")
+sources/12 = SubResource("TileSetAtlasSource_mud")
+sources/13 = SubResource("TileSetAtlasSource_oil")
+sources/14 = SubResource("TileSetAtlasSource_quicksand")
+sources/15 = SubResource("TileSetAtlasSource_red_mud")
+sources/16 = SubResource("TileSetAtlasSource_swamp_water")
+sources/17 = SubResource("TileSetAtlasSource_maple")
+sources/18 = SubResource("TileSetAtlasSource_oak")
+sources/19 = SubResource("TileSetAtlasSource_bamboo")
+sources/20 = SubResource("TileSetAtlasSource_cactus")
+sources/21 = SubResource("TileSetAtlasSource_salt_water")
+sources/23 = SubResource("TileSetAtlasSource_coffee")
+sources/24 = SubResource("TileSetAtlasSource_cotton")
+sources/25 = SubResource("TileSetAtlasSource_volcanic_ash")
+sources/30 = SubResource("TileSetAtlasSource_stone_ore")
+sources/31 = SubResource("TileSetAtlasSource_tin_ore")
+sources/32 = SubResource("TileSetAtlasSource_gold_ore")
+sources/33 = SubResource("TileSetAtlasSource_copper_ore")
+sources/34 = SubResource("TileSetAtlasSource_silver_ore")

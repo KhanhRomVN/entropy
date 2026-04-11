@@ -1,0 +1,63 @@
+[gd_scene format=4 uid="uid://cg2m64hfmm2hm"]
+
+[ext_resource type="Texture2D" uid="uid://nu24w24ayvym" path="res://assets/blocks/grass_block/grass_block.png" id="1_grass"]
+[ext_resource type="Texture2D" uid="uid://d32sjl6lwv4hv" path="res://assets/buildings/bed/bed_SouthEast.png" id="2_luv34"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_grass"]
+texture = ExtResource("1_grass")
+texture_region_size = Vector2i(500, 250)
+0:19/0 = 0
+0:0/0 = 0
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_m6jrn"]
+texture = ExtResource("2_luv34")
+texture_region_size = Vector2i(500, 250)
+
+[sub_resource type="TileSet" id="TileSet_test2"]
+tile_shape = 1
+tile_size = Vector2i(500, 250)
+sources/0 = SubResource("TileSetAtlasSource_grass")
+sources/4 = SubResource("TileSetAtlasSource_m6jrn")
+
+[sub_resource type="GDScript" id="GDScript_test2"]
+script/source = "extends TileMapLayer
+
+func _ready():
+	# Xóa dữ liệu cũ nếu có
+	clear()
+	
+	# Tạo biển nước 12x12
+	for x in range(-6, 7):
+		for y in range(-6, 7):
+			set_cell(Vector2i(x, y), 1, Vector2i(0, 19))
+	
+	# Tạo đảo cỏ 5x5 ở giữa
+	for x in range(-2, 3):
+		for y in range(-2, 3):
+			set_cell(Vector2i(x, y), 0, Vector2i(0, 19))
+	
+	# Đặt cây táo ở trung tâm
+	set_cell(Vector2i(0, 0), 2, Vector2i(0, 0))
+	
+	# Đặt các viên đá trang trí
+	set_cell(Vector2i(1, 1), 3, Vector2i(0, 0))   # Đá 1
+	set_cell(Vector2i(-1, 1), 4, Vector2i(0, 0))  # Đá 2
+	set_cell(Vector2i(1, -1), 5, Vector2i(0, 0))  # Đá 3
+	set_cell(Vector2i(-2, 0), 3, Vector2i(0, 0))  # Đá 1 lặp lại
+"
+
+[node name="Test2Map" type="Node2D" unique_id=1760656119]
+
+[node name="TileMapLayer" type="TileMapLayer" parent="." unique_id=134353547]
+y_sort_enabled = true
+tile_map_data = PackedByteArray("AAD//wIAAAAAAAAAAAD//wMAAAAAAAAAAAD+/wMAAAAAAAAAAAD//wQAAAAAAAAAAAAAAAQAAAAAAAAAAAD//wUAAAAAAAAAAAD+/wUAAAAAAAAAAAD+/wQAAAAAAAAAAAD//wYAAAAAAAAAAAD9/wMAAAAAAAAAAAD8/wYAAAAAAAAAAAD9/wgAAAAAAAAAAAD9/wkAAAAAAAAAAAD+/woAAAAAAAAAAAD//woAAAAAAAAAAAD+/wsAAAAAAAAAAAD//wkAAAAAAAAAAAABAAYAAAAAAAAAAAA=")
+tile_set = SubResource("TileSet_test2")
+script = SubResource("GDScript_test2")
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=346197471]
+zoom = Vector2(0.3, 0.3)
+
+[node name="Sun" type="DirectionalLight2D" parent="." unique_id=412798958]
+visible = false
+rotation = 0.785398
+energy = 1.2

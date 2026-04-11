@@ -1,0 +1,12 @@
+{
+  "id": "dirt_block",
+  "display_name": "Dirt Block",
+  "category": "block",
+  "grid_size": [1, 1],
+  "texture_origin": [0, 2373],
+  "properties": {
+    "is_walkable": true,
+    "is_destroyable": true,
+    "build_cost": 5
+  }
+}

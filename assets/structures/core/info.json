@@ -1,0 +1,12 @@
+{
+  "id": "core",
+  "display_name": "Core Base",
+  "category": "building",
+  "grid_size": [1, 1],
+  "texture_origin": [250, 4997],
+  "properties": {
+    "is_walkable": false,
+    "is_destroyable": false,
+    "build_cost": 500
+  }
+}

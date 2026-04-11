@@ -1,0 +1,323 @@
+[gd_scene load_steps=18 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/hud.gd" id="1_hud"]
+[ext_resource type="Texture2D" path="res://assets/tiles/grounds/grass_block/grass_block.png" id="2_icons"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.05, 0.05, 0.07, 0.75)
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(1, 1, 1, 0.1)
+shadow_color = Color(0, 0, 0, 0.3)
+shadow_size = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_progress_bg"]
+bg_color = Color(0, 0, 0, 0.4)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_health"]
+bg_color = Color(0.95, 0.15, 0.2, 1)
+border_width_bottom = 2
+border_color = Color(0.7, 0.1, 0.15, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(0.9, 0.1, 0.2, 0.4)
+shadow_size = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_stamina"]
+bg_color = Color(0.2, 0.8, 1.0, 1)
+border_width_bottom = 2
+border_color = Color(0.1, 0.6, 0.8, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(0.2, 0.7, 0.9, 0.4)
+shadow_size = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hunger"]
+bg_color = Color(0.5, 0.8, 0.2, 1)
+border_width_bottom = 2
+border_color = Color(0.4, 0.6, 0.1, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(0.4, 0.7, 0.1, 0.3)
+shadow_size = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_thirst"]
+bg_color = Color(0.1, 0.5, 0.9, 1)
+border_width_bottom = 2
+border_color = Color(0.05, 0.4, 0.7, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(0.1, 0.4, 0.8, 0.3)
+shadow_size = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_mental"]
+bg_color = Color(0.7, 0.3, 0.9, 1)
+border_width_bottom = 2
+border_color = Color(0.5, 0.2, 0.7, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(0.6, 0.2, 1.0, 0.3)
+shadow_size = 6
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_health"]
+atlas = ExtResource("2_icons")
+region = Rect2(0, 0, 204, 204)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_stamina"]
+atlas = ExtResource("2_icons")
+region = Rect2(204, 0, 204, 204)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_hunger"]
+atlas = ExtResource("2_icons")
+region = Rect2(408, 0, 204, 204)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_thirst"]
+atlas = ExtResource("2_icons")
+region = Rect2(612, 0, 204, 204)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_mental"]
+atlas = ExtResource("2_icons")
+region = Rect2(816, 0, 204, 204)
+
+[node name="HUD" type="CanvasLayer"]
+script = ExtResource("1_hud")
+
+[node name="Panel" type="PanelContainer" parent="."]
+custom_minimum_size = Vector2(350, 0)
+anchors_preset = 0
+offset_left = 30.0
+offset_top = 30.0
+offset_right = 380.0
+offset_bottom = 250.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 15
+theme_override_constants/margin_top = 15
+theme_override_constants/margin_right = 15
+theme_override_constants/margin_bottom = 15
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Health" type="HBoxContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Icon" type="TextureRect" parent="Panel/Margin/VBox/Health"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+texture = SubResource("AtlasTexture_health")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin/VBox/Health"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="Label" type="HBoxContainer" parent="Panel/Margin/VBox/Health/VBox"]
+layout_mode = 2
+
+[node name="Name" type="Label" parent="Panel/Margin/VBox/Health/VBox/Label"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 0.8)
+theme_override_font_sizes/font_size = 12
+text = "SINH LỰC"
+
+[node name="HealthLabel" type="Label" parent="Panel/Margin/VBox/Health/VBox/Label" unique_name_in_owner=true]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "100 / 100"
+
+[node name="HealthBar" type="ProgressBar" parent="Panel/Margin/VBox/Health/VBox" unique_name_in_owner=true]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_progress_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_health")
+value = 100.0
+show_percentage = false
+
+[node name="Stamina" type="HBoxContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Icon" type="TextureRect" parent="Panel/Margin/VBox/Stamina"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+texture = SubResource("AtlasTexture_stamina")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin/VBox/Stamina"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="Label" type="HBoxContainer" parent="Panel/Margin/VBox/Stamina/VBox"]
+layout_mode = 2
+
+[node name="Name" type="Label" parent="Panel/Margin/VBox/Stamina/VBox/Label"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 0.8)
+theme_override_font_sizes/font_size = 12
+text = "THỂ LỰC"
+
+[node name="StaminaLabel" type="Label" parent="Panel/Margin/VBox/Stamina/VBox/Label" unique_name_in_owner=true]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "100 / 100"
+
+[node name="StaminaBar" type="ProgressBar" parent="Panel/Margin/VBox/Stamina/VBox" unique_name_in_owner=true]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_progress_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_stamina")
+value = 100.0
+show_percentage = false
+
+[node name="Hunger" type="HBoxContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Icon" type="TextureRect" parent="Panel/Margin/VBox/Hunger"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+texture = SubResource("AtlasTexture_hunger")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin/VBox/Hunger"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="Label" type="HBoxContainer" parent="Panel/Margin/VBox/Hunger/VBox"]
+layout_mode = 2
+
+[node name="Name" type="Label" parent="Panel/Margin/VBox/Hunger/VBox/Label"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 0.8)
+theme_override_font_sizes/font_size = 12
+text = "NO NÊ"
+
+[node name="HungerLabel" type="Label" parent="Panel/Margin/VBox/Hunger/VBox/Label" unique_name_in_owner=true]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "95 / 100"
+
+[node name="HungerBar" type="ProgressBar" parent="Panel/Margin/VBox/Hunger/VBox" unique_name_in_owner=true]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_progress_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_hunger")
+value = 95.0
+show_percentage = false
+
+[node name="Thirst" type="HBoxContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Icon" type="TextureRect" parent="Panel/Margin/VBox/Thirst"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+texture = SubResource("AtlasTexture_thirst")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin/VBox/Thirst"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="Label" type="HBoxContainer" parent="Panel/Margin/VBox/Thirst/VBox"]
+layout_mode = 2
+
+[node name="Name" type="Label" parent="Panel/Margin/VBox/Thirst/VBox/Label"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 0.8)
+theme_override_font_sizes/font_size = 12
+text = "GIẢI KHÁT"
+
+[node name="ThirstLabel" type="Label" parent="Panel/Margin/VBox/Thirst/VBox/Label" unique_name_in_owner=true]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "90 / 100"
+
+[node name="ThirstBar" type="ProgressBar" parent="Panel/Margin/VBox/Thirst/VBox" unique_name_in_owner=true]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_progress_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_thirst")
+value = 90.0
+show_percentage = false
+
+[node name="Mental" type="HBoxContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Icon" type="TextureRect" parent="Panel/Margin/VBox/Mental"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+texture = SubResource("AtlasTexture_mental")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin/VBox/Mental"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="Label" type="HBoxContainer" parent="Panel/Margin/VBox/Mental/VBox"]
+layout_mode = 2
+
+[node name="Name" type="Label" parent="Panel/Margin/VBox/Mental/VBox/Label"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 0.8)
+theme_override_font_sizes/font_size = 12
+text = "TÂM LÝ"
+
+[node name="MentalLabel" type="Label" parent="Panel/Margin/VBox/Mental/VBox/Label" unique_name_in_owner=true]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "100 / 100"
+
+[node name="MentalBar" type="ProgressBar" parent="Panel/Margin/VBox/Mental/VBox" unique_name_in_owner=true]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_progress_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_mental")
+value = 100.0
+show_percentage = false
