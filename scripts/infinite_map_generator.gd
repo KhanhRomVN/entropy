@@ -6,6 +6,8 @@ var RENDER_DISTANCE = 3
 @export var tileset: TileSet
 @export var force_block_id: int = -1 # Nếu >= 0, ép tất cả các khối dùng ID này
 @export var spawn_building_type: String = "" # Tòa nhà xuất hiện tại (0,0)
+@export var map_size: int = 2000 # Kích thước map tối đa (tiles)
+@export var continent_radius: float = 0.55 # Thu nhỏ bán kính gốc để nhường chỗ cho warp lấn ra bãi biển # Tỉ lệ lục địa chiếm trong map_size
 var chunks: Dictionary = {} 
 var camera: Camera2D
 
@@ -33,6 +35,10 @@ var _moisture_noise: FastNoiseLite # Noise cho Độ ẩm (Khô -> Ướt)
 var _biome_noise: FastNoiseLite    # Noise đặc thù để phân chia 14 vùng Biome
 var _mist_noise: FastNoiseLite     # Noise cho sương mù ở Misty Grassland
 var _scatter_noise: FastNoiseLite    # Noise tần số cao để phân tán vật thể (Quặng)
+var _warp_noise: FastNoiseLite       # Noise chuyên dụng làm biến dạng lục địa (V6)
+var _giant_warp_noise: FastNoiseLite # Noise tần số siêu thấp để thay đổi hình dạng vĩ mô (V7)
+var _archipelago_filter_noise: FastNoiseLite # Noise để lọc cụm đảo tập trung (V7)
+var _fault_noise: FastNoiseLite              # Noise mô phỏng đứt gãy địa chất → tạo vịnh + đảo
 var _noise_cache: Dictionary = {} # Cache noise values theo chunk position
 var _pending_teleport_tile: Vector2 = Vector2(-99999, -99999) # Chẩn đoán sau khi đáp xuống
 var _expected_biome_after_teleport: String = "" # Để so khớp với Map
@@ -62,6 +68,7 @@ var _coffee_tree_tex = preload("res://assets/props/plants/trees/coffee_tree/coff
 var _cotton_tree_tex = preload("res://assets/props/plants/trees/cotton_tree/cotton_tree.png")
 var _bamboo_tex = preload("res://assets/props/plants/trees/bambo/bambo_1.png")
 var _cactus_tex = preload("res://assets/props/plants/trees/cactus/cactus_1.png")
+var _winter_pine_tex = preload("res://assets/props/plants/trees/winter_pine_tree/winter_pine_tree.png")
 
 # TÀI NGUYÊN KHOÁNG SẢN (ORES)
 var _stone_ore_tex = preload("res://assets/props/minerals/stone_ore/stone_ore_1.png")
@@ -90,6 +97,7 @@ var _tree_defs = {
 	"cotton": {"tex": _cotton_tree_tex, "scale": 0.8, "offset": Vector2(0, -150)},
 	"bamboo": {"tex": _bamboo_tex, "scale": 0.8, "offset": Vector2(0, -200)},
 	"cactus": {"tex": _cactus_tex, "scale": 0.8, "offset": Vector2(0, -200)},
+	"winter_pine": {"tex": _winter_pine_tex, "scale": 1.2, "offset": Vector2(0, -420)},
 	"stone_ore": {"tex": _stone_ore_tex, "scale": 0.6, "offset": Vector2(0, -50)},
 	"tin_ore": {"tex": _tin_ore_tex, "scale": 0.6, "offset": Vector2(0, -50)},
 	"gold_ore": {"tex": _gold_ore_tex, "scale": 0.6, "offset": Vector2(0, -50)},
@@ -121,8 +129,8 @@ var _chunk_update_timer: float = 0.0 # Throttling cho update_chunks (0.15s/lần
 const CHUNK_UPDATE_INTERVAL = 0.15
 
 # CONSTANTS TỐI ƯU (Không tạo Array mỗi tile)
-const FLUID_TILE_IDS: Array = [3, 13, 14, 15, 16, 21]
-const SOLID_TILE_IDS: Array = [4, 7] # Stone, Bazan
+const FLUID_TILE_IDS: Array = [3, 13, 14, 15, 16, 21, 26]
+const SOLID_TILE_IDS: Array = [4, 7, 27] # Stone, Bazan, Black Bazan
 const PROP_STRUCTURES: Array = ["windmill", "core"] # CHỈ công trình mới cần Physics
 const MAX_CONCURRENT_NOISE_TASKS: int = 4 # Giới hạn thread tasks đồng thời
 
@@ -143,7 +151,7 @@ var _spatial_hash: Dictionary = {}  # {Vector2i(cell) -> Array[Node2D (pivots)]}
 const _MULTIMESH_SCRIPT = preload("res://scripts/multi_mesh_tree_renderer.gd")
 var _tree_renderer: Node2D = null
 # Các loại cây dùng MultiMesh (thiên nhiên, rất nhiều) — công trình vẫn dùng Sprite2D
-const MULTIMESH_TREE_TYPES: Array = ["oak", "maple", "bamboo", "cactus", "coffee", "cotton"]
+const MULTIMESH_TREE_TYPES: Array = ["oak", "maple", "bamboo", "cactus", "coffee", "cotton", "winter_pine"]
 
 # ZERO-LAG WORLD GEN (Stage 2: Perfect Smoothness)
 var _generation_queue: Array[Vector2i] = [] 
@@ -198,28 +206,27 @@ func _ready():
 	_spatial_hash.clear() # Đảm bảo sạch rác khi khởi động
 	print("InfiniteMapGenerator: Initializing Pure 3D World...")
 	
-	# 0. KHỞI TẠO NOISE CẤU TRÚC THẾ GIỚI (QUY MÔ SIÊU LỤC ĐỊA)
+	# 0. KHỞI TẠO NOISE CẤU TRÚC THỀ GIỚI (QUY MÔ SIÊU LỤC ĐỊA)
 	_noise = FastNoiseLite.new()
 	_noise.seed = randi()
 	print("InfiniteMapGenerator: World Genesis with seed: ", _noise.seed)
 	_noise.noise_type = FastNoiseLite.TYPE_PERLIN
-	_noise.frequency = 0.0001 # Phù hợp với gạch 500px
+	_noise.frequency = 0.00015 # Tăng nhẹ tần số để đất liền gồ ghề hơn
 	_noise.fractal_octaves = 5 
 	_noise.fractal_lacunarity = 2.0
 	_noise.fractal_gain = 0.5
 	
-	# Noise cho Nhiệt độ (Climate Zones)
+	# Noise cho Nhiệt độ (Climate Zones) - TĂNG TẦN SỐ ĐỂ ĐA DẠNG BIOME
 	_temp_noise = FastNoiseLite.new()
 	_temp_noise.seed = _noise.seed + 101
-	_temp_noise.frequency = 0.00005 # Vùng khí hậu rộng lớn
-	_temp_noise.fractal_octaves = 1 
+	_temp_noise.frequency = 0.0025 # Tăng để tạo đủ vùng nóng/lạnh xen kẽ
+	_temp_noise.fractal_octaves = 4  # Thêm octave để chi tiết hơn
 	
 	# Noise cho Độ ẩm (Moisture Zones)
 	_moisture_noise = FastNoiseLite.new()
 	_moisture_noise.seed = _noise.seed + 202
-	_moisture_noise.frequency = 0.00005 
-	_moisture_noise.fractal_octaves = 1 # TỐI ƯU: 1 octave là đủ cho vung khí hậu
-	
+	_moisture_noise.frequency = 0.0022
+	_moisture_noise.fractal_octaves = 4
 	# Noise cho Rừng (cụm nhỏ)
 	_forest_noise = FastNoiseLite.new()
 	_forest_noise.seed = _noise.seed + 1000
@@ -227,41 +234,72 @@ func _ready():
 	_forest_noise.frequency = 0.05
 	_forest_noise.cellular_return_type = FastNoiseLite.RETURN_CELL_VALUE
 	
-	# Noise cho Biome (Các vùng lớn)
+	# Noise cho Biome (Các vùng lớn) - TĂNG TẦN SỐ ĐỂ DỄ TÌM THẤY
 	_biome_noise = FastNoiseLite.new()
 	_biome_noise.seed = _noise.seed + 5000
 	_biome_noise.noise_type = FastNoiseLite.TYPE_CELLULAR
-	_biome_noise.frequency = 0.002 # Biome vĩ mô
+	_biome_noise.frequency = 0.0018 # Biome quy mô vừa (giảm 1/2 so với V21)
 	_biome_noise.cellular_return_type = FastNoiseLite.RETURN_CELL_VALUE
 	
 	# Noise Phân tán (Đánh nát các cụm quặng)
 	_scatter_noise = FastNoiseLite.new()
 	_scatter_noise.seed = _noise.seed + 8000
 	_scatter_noise.noise_type = FastNoiseLite.TYPE_PERLIN
-	_scatter_noise.frequency = 0.3 # Độ nhiễu cực cao để phân tán hạt
-	_scatter_noise.fractal_octaves = 1 # TỐI ƯU: Không cần octave cho random phân tán
+	_scatter_noise.frequency = 0.3 
+	_scatter_noise.fractal_octaves = 1 
 	
 	# Noise cho Sương mù
 	_mist_noise = FastNoiseLite.new()
 	_mist_noise.seed = _noise.seed + 6000
 	_mist_noise.frequency = 0.02
-	_mist_noise.fractal_octaves = 1 # TỐI ƯU: Sương mù chỉ cần shape mượt
+	_mist_noise.fractal_octaves = 1 
 	
-	# Noise cho sông (Cải thiện: Uốn lượn hơn)
+	# [NEW] Noise chuyên dụng để làm biến dạng lục địa (QUYẾT ĐỊNH ĐỘ TỰ NHIÊN)
+	_warp_noise = FastNoiseLite.new()
+	_warp_noise.seed = _noise.seed + 9999
+	_warp_noise.frequency = 0.01 # Tần số cao để tạo chi tiết gồ ghề
+	_warp_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	_warp_noise.fractal_octaves = 4
+	_warp_noise.fractal_lacunarity = 2.0
+	_warp_noise.fractal_gain = 0.5	
+	
+	# [NEW-V7] Giant Warp: Làm biến dạng quy mô lớn (Amoeba)
+	_giant_warp_noise = FastNoiseLite.new()
+	_giant_warp_noise.seed = _noise.seed + 777
+	_giant_warp_noise.frequency = 0.0005 # Cực thấp để tạo các mảng nhô thụt lớn
+	_giant_warp_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	_giant_warp_noise.fractal_octaves = 2
+	
+	# [NEW-V7] Archipelago Filter: Lọc cụm đảo
+	_archipelago_filter_noise = FastNoiseLite.new()
+	_archipelago_filter_noise.seed = _noise.seed + 888
+	_archipelago_filter_noise.frequency = 0.002
+	_archipelago_filter_noise.noise_type = FastNoiseLite.TYPE_CELLULAR
+	_archipelago_filter_noise.cellular_return_type = FastNoiseLite.RETURN_CELL_VALUE	# [NEW] Fault Noise: Mô phỏng đứt gãy địa chất → khoét vịnh + tạo đảo tách rời
+	_fault_noise = FastNoiseLite.new()
+	_fault_noise.seed = _noise.seed + 3141
+	_fault_noise.noise_type = FastNoiseLite.TYPE_PERLIN
+	_fault_noise.frequency = 0.0008   # Tần số thấp → các đứt gãy rộng, tự nhiên
+	_fault_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	_fault_noise.fractal_octaves = 3
+	_fault_noise.fractal_lacunarity = 2.2
+	_fault_noise.fractal_gain = 0.6
+
+	# Noise cho sông
 	_river_noise = FastNoiseLite.new()
 	_river_noise.seed = _noise.seed + 1234
 	_river_noise.noise_type = FastNoiseLite.TYPE_PERLIN
-	_river_noise.frequency = 0.008 # Tăng tần số để sông uốn khúc nhiều hơn
+	_river_noise.frequency = 0.008 
 	_river_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
-	_river_noise.fractal_octaves = 4 # Tăng octave để dòng sông "vỡ" và tự nhiên
+	_river_noise.fractal_octaves = 4 
 	_river_noise.fractal_lacunarity = 2.2
 	_river_noise.fractal_gain = 0.55
 	
-	# Noise cho mặt nạ sông (River Mask - Watersheds)
+	# Noise cho mặt nạ sông
 	_river_mask_noise = FastNoiseLite.new()
 	_river_mask_noise.seed = _noise.seed + 9999
 	_river_mask_noise.noise_type = FastNoiseLite.TYPE_PERLIN
-	_river_mask_noise.frequency = 0.0006 # Tần số cực thấp để tạo vùng lưu vực lớn
+	_river_mask_noise.frequency = 0.0006 
 	_river_mask_noise.fractal_octaves = 2
 	
 	print("InfiniteMapGenerator: World Genesis with seed: ", _noise.seed)
@@ -721,7 +759,8 @@ func _process(delta):
 		var count = mini(PROP_BUDGET_PER_FRAME, _pending_props.size())
 		for i in range(count):
 			var p = _pending_props.pop_front()
-			_add_rotation_test_object(p["parent"], p["center"], p["size"], p["type"])
+			if is_instance_valid(p["parent"]):
+				_add_rotation_test_object(p["parent"], p["center"], p["size"], p["type"])
 	
 	# COMPONENT C: Distance-based Fade dùng Spatial Hash (O(1) với radius nhỏ)
 	_fade_check_timer += delta
@@ -814,22 +853,41 @@ func _update_debug_labels(fps: float):
 	if _ui_queue_lbl:
 		_ui_queue_lbl.text = "Hàng đợi (Vẽ/Xóa): %d / %d" % [_generation_queue.size(), _removal_queue.size()]
 
-func _get_biome_name_debug(n_val, t_val, m_val, b_val):
+func _get_biome_name_debug(n_val, t_val, m_val, b_val, r_val = 1.0, gpos: Vector2 = Vector2.ZERO):
 	if n_val < -0.4: return "Biển sâu (Deep Sea)"
 	if n_val < -0.32: return "Bờ biển (Beach)"
+	if r_val == 0.0: return "Sông (River)"
+	
+	# 2. VÙNG ĐẶC BIỆT (Priority High)
+	var v_center = Vector2(250, -250)
+	var v_warp = _warp_noise.get_noise_2d(gpos.x * 2.5, gpos.y * 2.5) * 80.0
+	var dist_v = gpos.distance_to(v_center) + v_warp
+	
+	var v_mask = smoothstep(400.0, 50.0, dist_v) 
+	var v_final = b_val * 0.4 + v_mask * 0.7 
+	
+	# Hồ dung nham cũng uốn lượn (Warp mạnh hơn)
+	var l_warp = _warp_noise.get_noise_2d(gpos.x * 5.0, gpos.y * 5.0) * 25.0
+	if (gpos.distance_to(v_center) + l_warp) < 50.0: return "Núi lửa (Volcano)" 
+	
+	if v_final > 0.8: return "Núi lửa (Volcano)"
+	if b_val < 0.15: return "Rừng tre (Bamboo Forest)"
 	
 	var is_hot = t_val > 0.3
-	var is_dry = m_val < -0.1
-	var is_moist = m_val > 0.2
+	var is_cold = t_val < -0.45
+	var is_dry = m_val < -0.2
+	var is_wet = m_val > 0.3
+	
+	if is_cold: 
+		return "Đài nguyên (Tundra)"
 	
 	if is_hot:
 		if is_dry: return "Sa mạc (Desert)"
-		if is_moist: return "Rừng nhiệt đới (Tropical Jungle)"
-		return "Savanna"
+		if is_wet: return "Rừng nhiệt đới (Jungle)"
+		return "Savannah nhiệt đới"
 	else:
-		if is_dry: return "Đồng cỏ khô (Dry Steppe)"
-		if is_moist: return "Rừng ôn đới (Temperate Forest)"
-		if b_val > 0.7: return "Rừng hoa (Flowery Field)"
+		if is_wet: return "Rừng ôn đới (Forest)"
+		if is_dry: return "Thảo nguyên khô (Steppe)"
 		return "Đồng cỏ (Plains)"
 
 func _update_ghost_position():
@@ -891,16 +949,24 @@ func update_chunks(immediate: bool = false):
 	# GIỚI HẠN THẮT CHẶT: Tầm nhìn tối tối đa 12 chunk (đủ cho 1080p zoom out)
 	var effective_dist = clampi(ceili(RENDER_DISTANCE * zoom_factor), RENDER_DISTANCE, 12)
 	
+	# GIỚI HẠN MAP: Tính chunk boundary
+	var max_chunk = ceili(map_size / float(CHUNK_SIZE))
+	var min_chunk = -max_chunk
+	
 	# 1. TÌM CHUNK MỚI THEO HÌNH XOÁY (O(N^2) Optimized)
 	for r in range(effective_dist + 1):
 		# Duyệt hàng trên và hàng dưới
 		for dx in range(-r, r + 1):
-			_check_and_add_chunk(cur_c + Vector2i(dx, r))
-			if r > 0: _check_and_add_chunk(cur_c + Vector2i(dx, -r))
+			var c1 = cur_c + Vector2i(dx, r)
+			var c2 = cur_c + Vector2i(dx, -r)
+			if _is_chunk_in_bounds(c1, min_chunk, max_chunk): _check_and_add_chunk(c1)
+			if r > 0 and _is_chunk_in_bounds(c2, min_chunk, max_chunk): _check_and_add_chunk(c2)
 		# Duyệt cột trái và cột phải (tránh các góc đã duyệt ở trên)
 		for dy in range(-r + 1, r):
-			_check_and_add_chunk(cur_c + Vector2i(r, dy))
-			_check_and_add_chunk(cur_c + Vector2i(-r, dy))
+			var c1 = cur_c + Vector2i(r, dy)
+			var c2 = cur_c + Vector2i(-r, dy)
+			if _is_chunk_in_bounds(c1, min_chunk, max_chunk): _check_and_add_chunk(c1)
+			if _is_chunk_in_bounds(c2, min_chunk, max_chunk): _check_and_add_chunk(c2)
 	
 	if immediate:
 		_process_generation_queue(999999) 
@@ -915,6 +981,9 @@ func update_chunks(immediate: bool = false):
 	
 	_t_physics_reg += (Time.get_ticks_usec() - t_update_start)
 
+func _is_chunk_in_bounds(cp: Vector2i, min_c: int, max_c: int) -> bool:
+	return cp.x >= min_c and cp.x <= max_c and cp.y >= min_c and cp.y <= max_c
+
 func _check_and_add_chunk(cp: Vector2i):
 	# TỐI ƯU: Hủy xóa bằng cách xóa khỏi Set. 
 	if _removal_set.has(cp):
@@ -922,6 +991,11 @@ func _check_and_add_chunk(cp: Vector2i):
 		return
 		
 	if not chunks.has(cp) and not _generation_set.has(cp): 
+		# THỰC HIỆN GIỚI HẠN BẢN ĐỒ (BOUNDARY CHECK)
+		var max_c = floorf(map_size / float(CHUNK_SIZE)) / 2.0
+		if abs(cp.x) > max_c or abs(cp.y) > max_c:
+			return # Không tạo chunk nằm ngoài hình vuông giới hạn
+			
 		_generation_queue.push_back(cp)
 		_generation_set[cp] = true
 		_trigger_background_noise(cp)
@@ -994,11 +1068,16 @@ func _process_generation_queue(budget: int) -> int:
 	var cache_misses = 0
 	
 	while not _generation_queue.is_empty() or _current_gen_chunk != Vector2i(-999, -999):
+		# TỐI ƯU CỰC ĐỘ: Kiểm tra budget ngay khi bắt đầu một Chunk mới
+		# Nếu hết thời gian, không pop thêm chunk từ queue, giữ lại cho frame sau
+		if Time.get_ticks_usec() - start_time > budget:
+			return tiles_this_frame
+
 		if _current_gen_chunk == Vector2i(-999, -999):
 			_current_gen_chunk = _generation_queue.pop_front()
 			_generation_set.erase(_current_gen_chunk)
 			_current_tile_idx = 0
-			_create_chunk_node(_current_gen_chunk)
+			# KHÔNG tạo node ở đây nữa (Trì hoãn cho đến khi có Noise)
 			
 		# KIỂM TRA AN TOÀN: Nếu Chunk này bị xóa trong lúc đang vẽ dở (Race condition)
 		if not chunks.has(_current_gen_chunk):
@@ -1021,12 +1100,15 @@ func _process_generation_queue(budget: int) -> int:
 		_t_noise += (Time.get_ticks_usec() - t_noise_start)
 		
 		# Nếu chưa có Noise (đang tính trong thread), BỎ QUA HOÀN TOÀN
-		# Đừng tạo Node chunk ở đây vì sẽ bị lỗi giá trị mặc định (Sand)
 		if not cached_noise:
 			_trigger_background_noise(_current_gen_chunk)
 			_generation_queue.push_back(_current_gen_chunk)
 			_current_gen_chunk = Vector2i(-999, -999)
 			continue
+		
+		# CHỈ TẠO NODE KHI ĐÃ CÓ NOISE VÀ CÒN BUDGET
+		if not chunks.has(_current_gen_chunk):
+			_create_chunk_node(_current_gen_chunk)
 		
 		# COMPONENT D: Local variable cache — tránh double dict lookup trong hot loop
 		# Thay vì cached_noise["terrain"][idx] (2 lookups) → dùng _cn_terrain[idx] (1 access)
@@ -1051,8 +1133,20 @@ func _process_generation_queue(budget: int) -> int:
 			var ly = _current_tile_idx / CHUNK_SIZE
 			var gpos = s + Vector2i(lx, ly)
 			
-			# ĐỌC NOISE (Offset -0.1 để lục địa rộng hơn)
-			var n_val      = _cn_terrain[_current_tile_idx] - 0.1
+			# KIỂM TRA GIỚI HẠN MAP
+			if abs(gpos.x) > map_size or abs(gpos.y) > map_size:
+				layer.set_cell(gpos, 21, Vector2i(0, 0)) # Nước mặn bao quanh
+				_current_tile_idx += 1
+				tiles_this_frame += 1
+				continue
+			
+			# TÍNH KHOẢNG CÁCH TỪ TÂM (0,0) ĐỂ TẠO LỤC ĐỊA TRÒN
+			# [V4-OPTIMIZE] Bỏ qua vì đã được tính trong Thread Noise
+			var dist_from_center = Vector2(gpos.x, gpos.y).length() / map_size
+			# var continent_mask = smoothstep(continent_radius, continent_radius + 0.15, dist_from_center)
+			
+			# ĐỌC NOISE (Đã chứa toàn bộ logic mask và địa hình)
+			var n_val      = _cn_terrain[_current_tile_idx]
 			var forest_val = _cn_forest[_current_tile_idx]
 			var river_val  = _cn_river[_current_tile_idx]
 			var r_mask_val = (_cn_riv_mask[_current_tile_idx] + 1.0) / 2.0 # Chuẩn hóa 0..1
@@ -1060,6 +1154,8 @@ func _process_generation_queue(budget: int) -> int:
 			var moist_val  = _cn_moist[_current_tile_idx]
 			var b_val      = (_cn_biome[_current_tile_idx] + 1.0) / 2.0
 			var scatter_val= (_cn_scatter[_current_tile_idx] + 1.0) / 2.0
+			
+			# n_val = n_val - (continent_mask * 0.8)
 			
 			var sid = 1 # Mặc định: Cỏ
 			var prop_id = -1 # Mặc định: Không có vật thể
@@ -1080,18 +1176,26 @@ func _process_generation_queue(budget: int) -> int:
 				# 2. MA TRẬN KHÍ HẬU (Nhiệt độ x Độ ẩm)
 				else:
 					var is_hot = temp_val > 0.3
+					var is_cold = temp_val < -0.45
 					var is_dry = moist_val < -0.1
 					var is_wet = moist_val > 0.2
 					
 					# PHÂN LOẠI BIOME CHÍNH
-					if is_hot:
+					if is_cold:
+						sid = 8 # Snow Block
+						if forest_val > 0.3: prop_id = 26 # Winter Pine
+						if scatter_val > 0.95: prop_id = 30 # Stone Ore (thường thấy ở vùng lạnh)
+					elif is_hot:
 						if is_dry: # Sa mạc (Desert)
 							sid = 2 # Sand
-							if forest_val > 0.7: prop_id = 20 # Cactus
+							if forest_val > 0.55: prop_id = 20 # Cactus — xuất hiện nhiều hơn
 							if scatter_val > 0.96: prop_id = 33 # Copper
-						else: # Rừng rậm (Jungle)
+						elif is_wet: # Rừng nhiệt đới ẩm
 							sid = 9 # Đất rừng xậm
 							if forest_val > 0.1: prop_id = 23 # Coffee/Jungle trees
+						else: # Savannah nhiệt đới (nóng nhưng không khô, không ẩm)
+							sid = 1 # Cỏ
+							if forest_val > 0.75: prop_id = 6 # Bụi rậm thưa
 					else:
 						# Vùng ôn đới (Grassland / Forest)
 						sid = 1 
@@ -1104,33 +1208,43 @@ func _process_generation_queue(budget: int) -> int:
 							if forest_val > 0.9: prop_id = 6
 					
 					# 3. CÁC BIOME SÔNG NGÒI (Natural Rivers)
-					# TỐI ƯU: Chỉ cho phép sông ở vùng có mặt nạ lưu vực (River Mask)
-					# Sông to dần ở trung tâm lưu vực và biến mất ở rìa
-					var watershed_factor = smoothstep(0.4, 0.7, r_mask_val) 
-					
-					var river_moist_factor = clamp(moist_val + 0.5, 0.0, 1.2)
-					var coastal_mask = clamp(1.2 - n_val * 3.5, 0.0, 1.0) # Triệt tiêu sông nhanh hơn khi lên cao
-					var river_width_base = (0.02 + (scatter_val * 0.03)) * coastal_mask
-					var dynamic_river_threshold = river_width_base * river_moist_factor * watershed_factor
-					
-					if watershed_factor > 0.01 and abs(river_val) < dynamic_river_threshold and n_val > -0.4:
-						sid = 3 # Nước ngọt thường
-						if is_wet: sid = 16 # Swamp ven sông
+					# SÔNG MỚI: river_val từ thread đã encode sẵn (0.0=sông chính, 0.5=sông nhánh, 1.0=đất)
+					# Chỉ áp sông khi đất không phải biển/bờ biển
+					if river_val < 0.8 and n_val > -0.1 and n_val < 0.45:
+						sid = 3 # Sông chính → Nước ngọt
+					elif river_val < 0.6 and n_val > -0.05 and n_val < 0.4:
+						sid = 3 # Sông nhánh
 					
 					# 4. ĐỊA HÌNH ĐẶC BIỆT (Cellular Noise)
-					# Dùng b_val để "chèn" các vùng đặc biệt vào giữa các lục địa
-					if b_val > 0.95: # BIOME NÚI LỬA (Volcano / Rocky Peaks)
-						if n_val < -0.2: # Vùng trũng trong núi lửa -> LAVA
-							sid = 7 # Tạm dùng Bazan làm nền Lava
+					# --- BIOME DECISION ---
+					var v_final = b_val
+					var v_center = Vector2(250, -250)
+					var v_warp = _warp_noise.get_noise_2d(gpos.x * 2.5, gpos.y * 2.5) * 80.0
+					var dist_v = gpos.distance_to(v_center) + v_warp
+					
+					if n_val > -0.25: # Chỉ có núi lửa trên cạn
+						var v_mask = smoothstep(400.0, 50.0, dist_v)
+						v_final = b_val * 0.4 + v_mask * 0.7
+
+					# Hồ dung nham cũng uốn lượn tự nhiên (Warp riêng)
+					var l_warp = _warp_noise.get_noise_2d(gpos.x * 5.0, gpos.y * 5.0) * 25.0
+					var dist_lake = gpos.distance_to(v_center) + l_warp
+					
+					if dist_lake < 50.0 and n_val > -0.2: # HỒ DUNG NHAM TRUNG TÂM (Tự nhiên)
+						sid = 26 # Lava Block
+						prop_id = 25 # Tro bụi
+					elif v_final > 0.8: # BIOME NÚI LỬA (Volcano / Rocky Peaks)
+						if n_val < -0.15: # Vùng trũng trong núi lửa -> LAVA
+							sid = 26 # Lava Block
 						else:
-							sid = 4 # Stone Block
+							sid = 27 # Black Bazan Block
 						
-						# Phủ tro bụi núi lửa (Ash Overlay)
-						if forest_val > 0.0: # Tro bụi phủ khắp nơi
+						# Phủ tro bụi núi lửa (Ash Overlay) - TỐI ƯU: GIẢM MẬT ĐỘ (Thưa thớt hơn)
+						if forest_val > 0.7: # Chỉ 15% diện tích có tro bụi (Giảm lag)
 							prop_id = 25 # Volcanic Ash Overlay
 						# Quặng vàng hiếm ở núi lửa
 						if scatter_val > 0.98: prop_id = 32 # Gold Ore
-					elif b_val < -0.95: # Rừng tre (Bamboo)
+					elif b_val < 0.15: # Rừng tre (Bamboo)
 						sid = 10
 						if forest_val > 0.4: prop_id = 19
 
@@ -1141,12 +1255,22 @@ func _process_generation_queue(budget: int) -> int:
 
 			# ĐẶT TILE NỀN
 			var t_tile_base = Time.get_ticks_usec()
+			
+			# CHẨN ĐOÁN & BIẾN ĐỔI TILE NỀN (V3)
+			# Phá bỏ vành đai cát đồng nhất: Bãi cát giờ đây phụ thuộc vào độ dốc và noise phân tán
+			var beach_jitter = scatter_val * 0.1
+			if sid == 2: # Nếu logic trước đó định nghĩa là Beach
+				if n_val < -0.38 + beach_jitter: # Nếu quá sâu -> Về lại nước cạn hoặc giữ cát tùy noise
+					pass
+				elif n_val > -0.3 + beach_jitter: # Nếu quá cao -> Chuyển thành Cỏ (Plains) lấn ra biển
+					sid = 1 
+			
 			layer.set_cell(gpos, sid, Vector2i(0, 0))
 			_t_tiles += (Time.get_ticks_usec() - t_tile_base)
 			
 			# CHẨN ĐOÁN SAU TELEPORT (Sửa lỗi làm tròn số âm bằng cách check bán kính 2 ô)
 			if _pending_teleport_tile.distance_to(Vector2(gpos)) < 1.5:
-				var actual_biome = _get_biome_name_debug(n_val, temp_val, moist_val, b_val)
+				var actual_biome = _get_biome_name_debug(n_val, temp_val, moist_val, b_val, river_val, gpos)
 				var match_status = "[MATCH]" if actual_biome == _expected_biome_after_teleport else "[MISMATCH]"
 				
 				print("[DEBUG-MAP] Arrival Check | Tile: %s" % gpos)
@@ -1174,8 +1298,8 @@ func _process_generation_queue(budget: int) -> int:
 					20: tree_type = "cactus"
 					23: tree_type = "coffee"
 					24: tree_type = "cotton"
+					26: tree_type = "winter_pine"
 					5: tree_type = "oak" 
-					6: tree_type = "" 
 					25: tree_type = "" # Ash (Tĩnh)
 					6: tree_type = "bush"
 					# CÁC LOẠI QUẶNG (30-34) KHÔNG GÁN tree_type ĐỂ TỰ ĐỘNG DÙNG TILEMAP (TỐI ƯU FPS)
@@ -1532,42 +1656,258 @@ func _trigger_background_noise(cpos: Vector2i):
 		
 	WorkerThreadPool.add_task(_thread_generate_noise.bind(
 		cpos, _noise, _forest_noise, _river_noise, _biome_noise, 
-		_mist_noise, _river_mask_noise, _temp_noise, _moisture_noise, _scatter_noise
+		_mist_noise, _river_mask_noise, _temp_noise, _moisture_noise, _scatter_noise, _warp_noise,
+		_giant_warp_noise, _archipelago_filter_noise, _fault_noise
 	))
 
-func _thread_generate_noise(cpos, terrain_n, forest_n, river_n, biome_n, mist_n, riv_mask_n, temp_n, moist_n, scatter_n):
+func _thread_generate_noise(cpos, terrain_n, forest_n, river_n, biome_n, mist_n, riv_mask_n, temp_n, moist_n, scatter_n, warp_n, giant_n, filter_n, fault_n):
 	var s = cpos * CHUNK_SIZE
 	var total = CHUNK_SIZE * CHUNK_SIZE
 	
-	var terrain_data = PackedFloat32Array(); terrain_data.resize(total)
-	var forest_data  = PackedFloat32Array(); forest_data.resize(total)
-	var river_data   = PackedFloat32Array(); river_data.resize(total)
-	var temp_data    = PackedFloat32Array(); temp_data.resize(total)
-	var moist_data   = PackedFloat32Array(); moist_data.resize(total)
+	var terrain_data  = PackedFloat32Array(); terrain_data.resize(total)
+	var forest_data   = PackedFloat32Array(); forest_data.resize(total)
+	var river_data    = PackedFloat32Array(); river_data.resize(total)
+	var temp_data     = PackedFloat32Array(); temp_data.resize(total)
+	var moist_data    = PackedFloat32Array(); moist_data.resize(total)
 	var riv_mask_data = PackedFloat32Array(); riv_mask_data.resize(total)
-	var biome_data   = PackedFloat32Array(); biome_data.resize(total)
-	var mist_data    = PackedFloat32Array(); mist_data.resize(total)
-	var scatter_data = PackedFloat32Array(); scatter_data.resize(total)
+	var biome_data    = PackedFloat32Array(); biome_data.resize(total)
+	var mist_data     = PackedFloat32Array(); mist_data.resize(total)
+	var scatter_data  = PackedFloat32Array(); scatter_data.resize(total)
 	
 	var terrain_sum = 0.0
 	var idx = 0
+	
+	var max_dist = (map_size / 2.0) * continent_radius
+	
+	# === FAULT CENTERS (seed-based, cố định mỗi world) ===
+	# Góc fault dựa trên seed → mỗi world có vị trí vịnh khác nhau
+	var seed_f = float(terrain_n.seed)
+	var fault_angle_1 = fmod(seed_f * 0.618033, TAU)
+	# Fault 2 nằm lệch ~150°-210° so với fault 1 (không đối diện hoàn toàn, tự nhiên hơn)
+	var fault_angle_2 = fault_angle_1 + PI + (fmod(seed_f * 0.333, 0.6) - 0.3)
+	# Fault nằm ở vùng bờ biển: 60%~85% max_dist từ tâm
+	var fault_r1 = max_dist * (0.60 + fmod(seed_f * 0.271, 0.25))
+	var fault_r2 = max_dist * (0.60 + fmod(seed_f * 0.137, 0.25))
+	var fault_center_1 = Vector2(cos(fault_angle_1), sin(fault_angle_1)) * fault_r1
+	var fault_center_2 = Vector2(cos(fault_angle_2), sin(fault_angle_2)) * fault_r2
+	
+	# === ĐẢO ĐỊA CHẤT: 2 đảo lớn (10~15% diện tích lục địa) ===
+	# Đảo nằm ngoài khơi, cách bờ một khoảng, không quá gần nhau
+	# Island 1: cùng hướng với fault_1 nhưng xa hơn (ngoài khơi)
+	var isl_angle_1 = fault_angle_1 + (fmod(seed_f * 0.159, 0.5) - 0.25) # Lệch nhẹ so với fault
+	var isl_dist_1  = max_dist * (0.95 + fmod(seed_f * 0.113, 0.20))      # 95%~115% max_dist
+	var isl_center_1 = Vector2(cos(isl_angle_1), sin(isl_angle_1)) * isl_dist_1
+	var isl_radius_1 = max_dist * 0.22  # Bán kính đảo ~22% max_dist → đảo to
+	
+	# Island 2: gần fault_2 nhưng cách bờ xa hơn
+	var isl_angle_2 = fault_angle_2 + (fmod(seed_f * 0.271, 0.5) - 0.25)
+	var isl_dist_2  = max_dist * (0.95 + fmod(seed_f * 0.229, 0.20))
+	var isl_center_2 = Vector2(cos(isl_angle_2), sin(isl_angle_2)) * isl_dist_2
+	var isl_radius_2 = max_dist * 0.20  # Đảo 2 hơi nhỏ hơn đảo 1
+	
 	for ly in range(CHUNK_SIZE):
 		for lx in range(CHUNK_SIZE):
 			var gx = s.x + lx
 			var gy = s.y + ly
+			var gpos_f = Vector2(gx, gy)
+			var raw_dist = gpos_f.length()
 			
+			# === CONTINENTAL MASK V16 ===
+			var giant_val = giant_n.get_noise_2d(gx, gy)
+			
+			# [NEW] North-West to North-East Bulge & Solidifier
+			var angle = atan2(gy, gx)
+			
+			# === DIRECTIONAL BIOME BIAS (V22: Early Declaration) ===
+			var se_target = PI/4.0   
+			var nw_target = -3.0*PI/4.0
+			var sw_target = 3.0*PI/4.0
+			
+			var se_diff = abs(angle - se_target)
+			if se_diff > PI: se_diff = TAU - se_diff
+			var se_bias_f = smoothstep(PI/2.5, 0.0, se_diff)
+			
+			var nw_diff = abs(angle - nw_target)
+			if nw_diff > PI: nw_diff = TAU - nw_diff
+			var nw_bias_f = smoothstep(PI/2.5, 0.0, nw_diff)
+			
+			var sw_diff = abs(angle - sw_target)
+			if sw_diff > PI: sw_diff = TAU - sw_diff
+			var sw_bias_f = smoothstep(PI/2.0, 0.0, sw_diff)
+			
+			# Hướng Tây (phá vỡ hình tròn)
+			var w_target = PI if angle > 0 else -PI
+			var w_diff = abs(angle - w_target)
+			var west_factor = smoothstep(PI/2.0, 0.0, w_diff) 
+			
+			# Hướng Đông (làm đặc vùng nát)
+			var e_target = 0.0
+			var e_diff = abs(angle - e_target)
+			var east_factor = smoothstep(PI/2.5, 0.0, e_diff)
+			
+			# ne_factor tập trung vào hướng nhô ra Đông Bắc
+			var ne_target = -PI/4.0
+			var ne_diff = abs(angle - ne_target)
+			if ne_diff > PI: ne_diff = TAU - ne_diff
+			var ne_factor = smoothstep(PI/2.5, 0.0, ne_diff) 
+			
+			# north_factor (Nhấp nhô macro phía Bắc)
+			var n_target = -PI/2.0
+			var n_diff = abs(angle - n_target)
+			if n_diff > PI: n_diff = TAU - n_diff
+			var is_north = smoothstep(PI/1.5, 0.0, n_diff) 
+			
+			# Nhô ra Đông Bắc (30%) & Đông/Đông Nam
+			var ne_bulge = 1.0 + (ne_factor * 0.3)
+			var se_bulge = 1.0 + (se_bias_f * 0.35) 
+			var east_bulge = 1.0 + (east_factor * 0.2) 
+			
+			# [V22] Tinh chỉnh hệ số thu nhỏ, cho phép hướng NE gồ ghề hơn
+			var local_max_dist = max_dist * ne_bulge * se_bulge * east_bulge * 0.86
+
+			# Warp biên độ: Phá vỡ sự mượt mà trên toàn bộ chu vi lục địa
+			# [V23] Tăng cường warp cho các hướng SE và E để không bị tròn quá mức
+			var warp_mult = 1.0 + (west_factor * 0.5) + (nw_bias_f * 0.45) + (ne_factor * 0.4) + (se_bias_f * 0.35) - (east_factor * 0.05)
+			var wx = warp_n.get_noise_2d(gx, gy) * 240.0 * warp_mult
+			var wy = warp_n.get_noise_2d(gy + 500, gx + 500) * 240.0 * warp_mult
+			var warped_pos = Vector2(gx + wx, gy + wy)
+			
+			# Nhấp nhô macro (thụt xuống nhô lên) - Phá vỡ hình tròn toàn diện 360 độ
+			var macro_warp_w = warp_n.get_noise_2d(gx * 0.002, gy * 0.002) * 125.0 * west_factor
+			var macro_warp_nw = warp_n.get_noise_2d(gx * 0.003, gy * 0.003) * 130.0 * nw_bias_f
+			var macro_warp_ne = warp_n.get_noise_2d(gx * 0.0035, gy * 0.0035 + 100) * 140.0 * ne_factor
+			var macro_warp_se = warp_n.get_noise_2d(gx * 0.004, gy * 0.004 + 200) * 135.0 * se_bias_f # Phá tròn SE
+			var macro_bump = warp_n.get_noise_2d(gx * 0.005, gy * 0.005) * 45.0 * is_north
+			
+			# Thêm một chút nhiễu nền toàn cục để không hướng nào bị "tròn hoàn hảo"
+			var global_annoyance = warp_n.get_noise_2d(gx * 0.001, gy * 0.001) * 60.0 
+			
+			var radius_distort = 1.0 + (giant_val * (1.2 - east_factor * 0.35))
+			var dist = (warped_pos.length() + macro_bump + macro_warp_w + macro_warp_nw + macro_warp_ne + macro_warp_se + global_annoyance) * radius_distort
+			dist += warp_n.get_noise_2d(gx * 2.5, gy * 2.5) * 16.0 * warp_mult
+			
+			var falloff = 1.0
+			if dist > local_max_dist * 0.55:
+				falloff = smoothstep(local_max_dist, local_max_dist * 0.55, dist)
+			
+			# === PHÁ VỠ SỰ TRÒN TRỊA (IRREGULAR BORDER) ===
+			var border_warp = warp_n.get_noise_2d(gx * 0.003, gy * 0.003) * local_max_dist * (0.12 + west_factor * 0.08)
+			var border_warp2 = giant_n.get_noise_2d(gx * 0.0015, gy * 0.0015) * local_max_dist * 0.08
+			var warped_raw_dist = raw_dist + border_warp + border_warp2
+			
+			var absolute_cutoff = smoothstep(local_max_dist * 1.15, local_max_dist * 0.80, warped_raw_dist)
+			var base_mask = falloff * absolute_cutoff
+			
+			# === FAULT SYSTEM V2 (Vình tự nhiên, không xé nát) ===
+			var shore_factor = smoothstep(0.0, 0.35, base_mask) * smoothstep(0.85, 0.45, base_mask)
+			shore_factor *= (1.0 - ne_factor * 0.8) 
+			shore_factor *= (1.0 - east_factor * 0.6) 
+			shore_factor *= (1.0 - sw_bias_f * 0.4) # [V21] Giảm vỡ nát ở phía Tây Nam
+			
+			var d1 = gpos_f.distance_to(fault_center_1)
+			# Fault width được điều chỉnh bằng noise để có hình dạng tự nhiên
+			var fault_noise_1 = fault_n.get_noise_2d(gx * 0.004, gy * 0.004) * 0.4 + 1.0
+			var fault_width_1 = local_max_dist * 0.18 * fault_noise_1  # ~18% max_dist
+			var fault_cut_1 = smoothstep(fault_width_1, fault_width_1 * 0.1, d1) * 0.70 * shore_factor
+			
+			var d2 = gpos_f.distance_to(fault_center_2)
+			var fault_noise_2 = fault_n.get_noise_2d(gx * 0.004 + 333, gy * 0.004 + 333) * 0.4 + 1.0
+			var fault_width_2 = local_max_dist * 0.16 * fault_noise_2
+			var fault_cut_2 = smoothstep(fault_width_2, fault_width_2 * 0.1, d2) * 0.65 * shore_factor
+			
+			var combined_fault_cut = maxf(fault_cut_1, fault_cut_2)
+			
+			# === TERRAIN HEIGHT ===
 			var nv = terrain_n.get_noise_2d(gx, gy)
+			nv = (nv + 0.40) * base_mask - 0.95 * (1.0 - base_mask)
+			# Fault khoét vào địa hình (chỉ ở vùng bờ)
+			nv -= combined_fault_cut
+			
+			# === FIX HỒ NỘI ĐỊA ===
+			# Chỉ áp dụng khi base_mask mạnh VÀ không phải vùng fault
+			if base_mask > 0.65 and nv < -0.32 and combined_fault_cut < 0.2:
+				var inland_lift = (base_mask - 0.65) * 2.0
+				nv = nv + inland_lift
+				if nv < -0.31: nv = -0.31
+			
+			# === ĐẢO ĐỊA CHẤT (TECTONIC ISLANDS) ===
+			# [V18] Đã loại bỏ hoàn toàn các hòn đảo lớn xung quanh lục địa.
+			# [V21] Thêm các hòn đảo siêu nhỏ rải rác xung quanh TOÀN BỘ lục địa
+			var isl_contrib = 0.0
+			if base_mask < 0.08: # Áp dụng cho mọi hướng trên biển gần bờ
+				var tiny_isl_noise = (filter_n.get_noise_2d(gx * 0.02, gy * 0.02) + 1.0) * 0.5
+				if tiny_isl_noise > 0.988: # Tăng độ hiếm để đảo không quá dày
+					var tiny_h = (tiny_isl_noise - 0.988) / 0.012
+					isl_contrib = maxf(isl_contrib, tiny_h * 0.75)
+			
+			if isl_contrib > 0.0:
+				nv = nv + isl_contrib * 0.9
+			
+			
 			terrain_data[idx] = nv
 			terrain_sum += nv
 			
+			# === BIOME JITTERING ===
+			var jitter_val = warp_n.get_noise_2d(gx * 4.0, gy * 4.0) * 0.25
+			
+			# === LATITUDE BIAS (Địa lý thực tế) ===
+			var norm_lat = clamp(gy / max_dist, -1.0, 1.0)
+			var polar_factor = smoothstep(0.5, 1.0, abs(norm_lat))
+			var latitude_temp_bonus = -(polar_factor * polar_factor) * 0.3 + 0.08
+			
+			# Áp dụng Bias Nhiệt độ & Độ ẩm
+			var t_raw = temp_n.get_noise_2d(gx, gy) + latitude_temp_bonus + jitter_val
+			t_raw += se_bias_f * 0.6  # [V21] Nóng lên SE (Giảm nhẹ cường độ)
+			t_raw -= nw_bias_f * 0.65  # Lạnh đi NW
+			t_raw -= sw_bias_f * 0.15  # Tây Nam ôn hòa (hơi mát một chút)
+			
+			var m_raw = moist_n.get_noise_2d(gx, gy) + (jitter_val * -0.6)
+			m_raw += sw_bias_f * 0.45  # Tây Nam ẩm hơn (nhiều rừng/sông)
+			m_raw -= (se_bias_f * 0.2) * (1.0 - m_raw) # SE khô hơn nếu đang nóng
+			
+			# Rain shadow gần fault
+			var rain_shadow = clamp(combined_fault_cut * 0.35, 0.0, 0.35)
+			m_raw -= rain_shadow
+			
+			temp_data[idx]  = t_raw
+			moist_data[idx] = m_raw
+			
+			# === SÔNG CÓ HƯỚNG ===
 			forest_data[idx]   = forest_n.get_noise_2d(gx, gy)
-			river_data[idx]    = river_n.get_noise_2d(gx, gy)
 			riv_mask_data[idx] = riv_mask_n.get_noise_2d(gx, gy)
-			temp_data[idx]     = temp_n.get_noise_2d(gx, gy)
-			moist_data[idx]    = moist_n.get_noise_2d(gx, gy)
-			biome_data[idx]    = biome_n.get_noise_2d(gx, gy)
-			mist_data[idx]     = mist_n.get_noise_2d(gx, gy)
-			scatter_data[idx]  = scatter_n.get_noise_2d(gx, gy)
+			
+			var h_right_r = terrain_n.get_noise_2d(gx + 3.0, gy)
+			var h_down_r  = terrain_n.get_noise_2d(gx, gy + 3.0)
+			var grad_x = h_right_r - nv
+			var grad_y = h_down_r  - nv
+			var flow_proj = river_n.get_noise_2d(gx + grad_x * 120.0, gy + grad_y * 120.0)
+			
+			var is_river_zone = nv > -0.1 and nv < 0.45
+			
+			# Lọc sông theo khí hậu (Nóng/Lạnh cực đoan chỉ giữ 2-5 con sông lớn)
+			var t_bias_abs = abs(t_raw)
+			var climate_filter = smoothstep(0.4, 0.9, t_bias_abs) # 0.0 (ôn hòa) -> 1.0 (khắc nghiệt)
+			
+			# Tăng mật độ sông ở Tây Nam (nhưng hạn chế hơn trước)
+			var river_boost = sw_bias_f * 0.45 
+			
+			# Ngưỡng sinh sông: Khắc nghiệt thì ngưỡng cực cao (khó sinh sông), Ôn hòa thì bình thường
+			var river_difficulty = 1.0 + (climate_filter * 8.0) 
+			var main_river_threshold = (0.038 + river_boost * 0.015) / river_difficulty * clamp(m_raw + 0.8, 0.3, 1.5)
+			var branch_river_threshold = (0.012 + river_boost * 0.008) / (river_difficulty * 1.5) * clamp(m_raw + 0.5, 0.1, 1.0)
+			
+			var river_val = 1.0
+			if is_river_zone:
+				if abs(flow_proj) < main_river_threshold:
+					river_val = 0.0
+				elif abs(river_n.get_noise_2d(gx, gy)) < branch_river_threshold:
+					river_val = 0.5
+			
+			river_data[idx] = river_val
+			
+			biome_data[idx]   = (biome_n.get_noise_2d(gx, gy) + 1.0) / 2.0 # Chuẩn hóa [0, 1] cho đồng bộ
+			mist_data[idx]    = mist_n.get_noise_2d(gx, gy)
+			scatter_data[idx] = scatter_n.get_noise_2d(gx, gy)
 			idx += 1
 	
 	var avg_terrain = terrain_sum / total
@@ -1631,7 +1971,7 @@ func _toggle_world_map(active: bool):
 			# Gán player để map tự cập nhật real-time
 			map_root.player_node = camera # Camera thường đi kèm với nhân vật
 			
-			map_root.setup(_noise, _forest_noise, _river_noise, _temp_noise, _moisture_noise, _biome_noise, _scatter_noise)
+			map_root.setup(_noise, _forest_noise, _river_noise, _temp_noise, _moisture_noise, _biome_noise, _scatter_noise, _warp_noise, _giant_warp_noise, _archipelago_filter_noise, _fault_noise, map_size, continent_radius)
 		else:
 			# Có thể thêm logic ẩn cursor nếu cần
 			pass

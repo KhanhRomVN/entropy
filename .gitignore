@@ -26,3 +26,4 @@ Thumbs.db
 .mono/
 bin/
 obj/
+logs/
