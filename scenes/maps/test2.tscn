@@ -1,7 +1,7 @@
-[gd_scene format=4 uid="uid://cg2m64hfmm2hm"]
+[gd_scene format=4]
 
-[ext_resource type="Texture2D" uid="uid://nu24w24ayvym" path="res://assets/blocks/grass_block/grass_block.png" id="1_grass"]
-[ext_resource type="Texture2D" uid="uid://d32sjl6lwv4hv" path="res://assets/buildings/bed/bed_SouthEast.png" id="2_luv34"]
+[ext_resource type="Texture2D" path="res://assets/blocks/grass_block/grass_block.png" id="1_grass"]
+[ext_resource type="Texture2D" path="res://assets/buildings/bed/bed_SouthEast.png" id="2_luv34"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_grass"]
 texture = ExtResource("1_grass")

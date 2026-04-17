@@ -17,7 +17,7 @@ func setup(_pos: Vector2i, _tileset: TileSet):
 	# Layer 0: Terrain (Mặt đất) - Luôn nằm dưới cùng
 	var terrain = TileMapLayer.new()
 	terrain.tile_set = tileset
-	terrain.y_sort_enabled = false # T\u1ed0I \u01afU: Ground tiles kh\u00f4ng c\u1ea7n Y-Sort
+	terrain.y_sort_enabled = true # ĐÃ BẬT: Cần thiết để các block Isometric cao che phủ nhau đúng cách
 	terrain.z_index = -1 # Đảm bảo luôn nằm dưới Player và Buildings
 	add_child(terrain)
 	height_layers.append(terrain)

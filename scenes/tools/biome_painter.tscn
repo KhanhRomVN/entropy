@@ -1,0 +1,539 @@
+[gd_scene load_steps=11 format=3 uid="uid://continent_painter_scene"]
+
+[ext_resource type="Script" path="res://scripts/tools/biome_painter.gd" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_App"]
+bg_color = Color(0.101961, 0.101961, 0.101961, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.2, 0.2, 1)
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+shadow_color = Color(0, 0, 0, 0.117647)
+shadow_size = 20
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_Topbar"]
+bg_color = Color(0.12549, 0.12549, 0.12549, 1)
+border_width_bottom = 1
+border_color = Color(0.2, 0.2, 0.2, 1)
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_BtnNormal"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_BtnHover"]
+bg_color = Color(0.184314, 0.184314, 0.184314, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25098, 0.25098, 0.25098, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_BtnActive"]
+bg_color = Color(0.14902, 0.309804, 0.470588, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.215686, 0.541176, 0.866667, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_Sidebar"]
+bg_color = Color(0.12549, 0.12549, 0.12549, 1)
+border_width_right = 1
+border_color = Color(0.2, 0.2, 0.2, 1)
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_SidebarHeader"]
+bg_color = Color(0.12549, 0.12549, 0.12549, 1)
+border_width_bottom = 1
+border_color = Color(0.2, 0.2, 0.2, 1)
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_SidebarRight"]
+bg_color = Color(0.12549, 0.12549, 0.12549, 1)
+border_width_left = 1
+border_color = Color(0.2, 0.2, 0.2, 1)
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_CanvasWrap"]
+bg_color = Color(0.129412, 0.129412, 0.129412, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_CanvasSheet"]
+bg_color = Color(0.0784314, 0.0784314, 0.0784314, 1)
+shadow_size = 0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_BrushCursor"]
+draw_center = false
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 1024
+corner_radius_top_right = 1024
+corner_radius_bottom_right = 1024
+corner_radius_bottom_left = 1024
+corner_detail = 32
+anti_aliasing = true
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_Statusbar"]
+bg_color = Color(0.12549, 0.12549, 0.12549, 1)
+border_width_top = 1
+border_color = Color(0.2, 0.2, 0.2, 1)
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_Modal"]
+bg_color = Color(0.14902, 0.14902, 0.14902, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.301961, 0.301961, 0.301961, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+shadow_color = Color(0, 0, 0, 0.6)
+shadow_size = 60
+shadow_offset = Vector2(0, 10)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_Input"]
+bg_color = Color(0.0784314, 0.0784314, 0.0784314, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.2, 0.2, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+content_margin_left = 10.0
+content_margin_right = 10.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_TabActive"]
+bg_color = Color(0.14902, 0.14902, 0.14902, 1)
+border_width_right = 1
+border_width_bottom = 2
+border_color = Color(0.2, 0.2, 0.2, 1)
+content_margin_left = 12.0
+content_margin_top = 4.0
+content_margin_right = 12.0
+content_margin_bottom = 4.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_TabUnactive"]
+bg_color = Color(0.0784314, 0.0784314, 0.0784314, 1)
+border_width_right = 1
+border_color = Color(0.2, 0.2, 0.2, 1)
+content_margin_left = 12.0
+content_margin_top = 4.0
+content_margin_right = 12.0
+content_margin_bottom = 4.0
+
+[node name="BiomePainter" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+script = ExtResource("1_script")
+
+[node name="AppFrame" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_App")
+mouse_filter = 1
+
+[node name="MainVerticalLayout" type="VBoxContainer" parent="AppFrame"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="Topbar" type="PanelContainer" parent="AppFrame/MainVerticalLayout"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_Topbar")
+
+[node name="Margin" type="MarginContainer" parent="AppFrame/MainVerticalLayout/Topbar"]
+layout_mode = 2
+theme_override_constants/margin_left = 0
+theme_override_constants/margin_right = 0
+
+[node name="HBox" type="HBoxContainer" parent="AppFrame/MainVerticalLayout/Topbar/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Tabs" type="TabBar" parent="AppFrame/MainVerticalLayout/Topbar/Margin/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 12
+theme_override_font_sizes/font_size = 12
+theme_override_styles/tab_selected = SubResource("StyleBoxFlat_TabActive")
+theme_override_styles/tab_hovered = SubResource("StyleBoxFlat_TabActive")
+theme_override_styles/tab_unselected = SubResource("StyleBoxFlat_TabUnactive")
+tab_close_display_policy = 2
+
+[node name="MainContentLayout" type="HBoxContainer" parent="AppFrame/MainVerticalLayout"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 0
+
+[node name="Sidebar" type="PanelContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout"]
+custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_Sidebar")
+mouse_filter = 1
+
+[node name="VBox" type="VBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="TitleMargin" type="MarginContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_bottom = 4
+
+[node name="Title" type="Label" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox/TitleMargin"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_font_sizes/font_size = 11
+text = "BIOMES"
+
+[node name="ListMargin" type="MarginContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 10
+
+[node name="Scroll" type="ScrollContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox/ListMargin"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox/ListMargin/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="CanvasArea" type="MarginContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="WorkspaceDock" type="Control" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea"]
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 1
+
+[node name="WorkspacePadding" type="Control" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/WorkspaceDock"]
+layout_mode = 0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="CanvasContent" type="Panel" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/WorkspaceDock/WorkspacePadding"]
+custom_minimum_size = Vector2(1024, 1024)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_CanvasSheet")
+mouse_filter = 2
+
+[node name="TextureRect" type="TextureRect" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/WorkspaceDock/WorkspacePadding/CanvasContent"]
+texture_filter = 1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 1
+grow_vertical = 1
+expand_mode = 1
+stretch_mode = 5
+mouse_filter = 0
+
+[node name="SelectionOverlay" type="ReferenceRect" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/WorkspaceDock/WorkspacePadding/CanvasContent"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+border_color = Color(0.215686, 0.541176, 0.866667, 1)
+border_width = 1.5
+editor_only = false
+
+[node name="WorkspaceBorder" type="ReferenceRect" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+border_color = Color(0.215686, 0.541176, 0.866667, 1)
+border_width = 1.5
+editor_only = false
+
+[node name="BrushCursor" type="Panel" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea"]
+visible = false
+top_level = true
+layout_mode = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_BrushCursor")
+
+[node name="SidebarRight" type="PanelContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout"]
+custom_minimum_size = Vector2(52, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_SidebarRight")
+mouse_filter = 1
+
+[node name="VBox" type="VBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="ToolsMargin" type="MarginContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox"]
+layout_mode = 2
+theme_override_constants/margin_left = 9
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 9
+theme_override_constants/margin_bottom = 8
+
+[node name="Tools" type="VBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Brush" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(0.215686, 0.541176, 0.866667, 1)
+theme_override_colors/icon_focus_color = Color(0.215686, 0.541176, 0.866667, 1)
+theme_override_styles/normal = SubResource("StyleBoxEmpty_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+tooltip_text = "Brush (B)"
+
+[node name="Rect" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(0.215686, 0.541176, 0.866667, 1)
+theme_override_colors/icon_focus_color = Color(0.215686, 0.541176, 0.866667, 1)
+theme_override_styles/normal = SubResource("StyleBoxEmpty_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+tooltip_text = "Marquee (M)"
+
+[node name="Wand" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(0.215686, 0.541176, 0.866667, 1)
+theme_override_colors/icon_focus_color = Color(0.215686, 0.541176, 0.866667, 1)
+theme_override_styles/normal = SubResource("StyleBoxEmpty_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+theme_override_styles/focus = SubResource("StyleBoxFlat_BtnActive")
+tooltip_text = "Magic Wand (W)"
+
+[node name="Eraser" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(0.215686, 0.541176, 0.866667, 1)
+theme_override_colors/icon_focus_color = Color(0.215686, 0.541176, 0.866667, 1)
+theme_override_styles/normal = SubResource("StyleBoxEmpty_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+theme_override_styles/focus = SubResource("StyleBoxFlat_BtnActive")
+tooltip_text = "Eraser (E)"
+
+[node name="StatusBar" type="PanelContainer" parent="AppFrame/MainVerticalLayout"]
+custom_minimum_size = Vector2(0, 26)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_Statusbar")
+
+[node name="Margin" type="MarginContainer" parent="AppFrame/MainVerticalLayout/StatusBar"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_right = 14
+
+[node name="HBox" type="HBoxContainer" parent="AppFrame/MainVerticalLayout/StatusBar/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="ToolStatus" type="Label" parent="AppFrame/MainVerticalLayout/StatusBar/Margin/HBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_font_sizes/font_size = 11
+text = "Tool: Brush"
+
+[node name="BiomeStatus" type="Label" parent="AppFrame/MainVerticalLayout/StatusBar/Margin/HBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_font_sizes/font_size = 11
+text = "Biome: Ocean"
+
+[node name="CoordStatus" type="Label" parent="AppFrame/MainVerticalLayout/StatusBar/Margin/HBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_font_sizes/font_size = 11
+text = "X: 0 Y: 0"
+
+
+[node name="OverlayLayer" type="CanvasLayer" parent="."]
+
+[node name="NewFileModal" type="Control" parent="OverlayLayer"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Bg" type="ColorRect" parent="OverlayLayer/NewFileModal"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.470588)
+
+[node name="Center" type="CenterContainer" parent="OverlayLayer/NewFileModal"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="OverlayLayer/NewFileModal/Center"]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_Modal")
+
+[node name="Margin" type="MarginContainer" parent="OverlayLayer/NewFileModal/Center/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBox" type="VBoxContainer" parent="OverlayLayer/NewFileModal/Center/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="OverlayLayer/NewFileModal/Center/Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "New File"
+horizontal_alignment = 1
+
+[node name="Grid" type="GridContainer" parent="OverlayLayer/NewFileModal/Center/Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 12
+columns = 2
+
+[node name="LabelName" type="Label" parent="OverlayLayer/NewFileModal/Center/Panel/Margin/VBox/Grid"]
+layout_mode = 2
+text = "Name:"
+
+[node name="InputName" type="LineEdit" parent="OverlayLayer/NewFileModal/Center/Panel/Margin/VBox/Grid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/normal = SubResource("StyleBoxFlat_Input")
+text = "Untitled"
+
+[node name="LabelSize" type="Label" parent="OverlayLayer/NewFileModal/Center/Panel/Margin/VBox/Grid"]
+layout_mode = 2
+text = "Size:"
+
+[node name="HBox" type="HBoxContainer" parent="OverlayLayer/NewFileModal/Center/Panel/Margin/VBox/Grid"]
+layout_mode = 2
+
+[node name="InputW" type="LineEdit" parent="OverlayLayer/NewFileModal/Center/Panel/Margin/VBox/Grid/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/normal = SubResource("StyleBoxFlat_Input")
+text = "1024"
+alignment = 1
+
+[node name="x" type="Label" parent="OverlayLayer/NewFileModal/Center/Panel/Margin/VBox/Grid/HBox"]
+layout_mode = 2
+text = "x"
+
+[node name="InputH" type="LineEdit" parent="OverlayLayer/NewFileModal/Center/Panel/Margin/VBox/Grid/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/normal = SubResource("StyleBoxFlat_Input")
+text = "1024"
+alignment = 1
+
+[node name="Buttons" type="HBoxContainer" parent="OverlayLayer/NewFileModal/Center/Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="BtnCreate" type="Button" parent="OverlayLayer/NewFileModal/Center/Panel/Margin/VBox/Buttons"]
+custom_minimum_size = Vector2(100, 32)
+layout_mode = 2
+text = "Create"
+
+[node name="BtnCancel" type="Button" parent="OverlayLayer/NewFileModal/Center/Panel/Margin/VBox/Buttons"]
+custom_minimum_size = Vector2(100, 32)
+layout_mode = 2
+text = "Cancel"

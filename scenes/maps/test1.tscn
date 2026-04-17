@@ -1,9 +1,9 @@
-[gd_scene load_steps=10 format=3 uid="uid://bndayxd48ys0j"]
+[gd_scene load_steps=10 format=3]
 
-[ext_resource type="Script" path="res://scripts/infinite_map_generator.gd" id="1_map"]
-[ext_resource type="TileSet" uid="uid://dd8n6x1y6o5j5" path="res://resources/tilesets/main_tileset.tres" id="2_tiles"]
-[ext_resource type="Script" uid="uid://dd52c0pgllfcc" path="res://scripts/camera_controller.gd" id="3_camera"]
-[ext_resource type="Script" path="res://scripts/day_night_cycle.gd" id="4_daynight"]
+[ext_resource type="Script" path="res://scripts/world/world_orchestrator.gd" id="1_map"]
+[ext_resource type="TileSet" path="res://resources/tilesets/main_tileset.tres" id="2_tiles"]
+[ext_resource type="Script" path="res://scripts/core/camera_controller.gd" id="3_camera"]
+[ext_resource type="Script" path="res://scripts/core/day_night_cycle.gd" id="4_daynight"]
 [ext_resource type="PackedScene" path="res://scenes/entities/player.tscn" id="5_player"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="6_hud"]
 

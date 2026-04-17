@@ -89,7 +89,8 @@ func add_tree(type_name: String, world_pos: Vector2, scale_val: float, y_offset:
 	var actual_pos = world_pos + Vector2(0, y_offset * scale_val)
 	
 	var xf = Transform2D()
-	xf = xf.scaled(Vector2(scale_val, scale_val))
+	# Đảo ngược Y (scaled -scale_val) vì QuadMesh mặc định là Y-up, trong khi 2D là Y-down
+	xf = xf.scaled(Vector2(scale_val, -scale_val))
 	xf.origin = actual_pos
 	mm.set_instance_transform_2d(slot, xf)
 	
