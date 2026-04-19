@@ -25,6 +25,18 @@ content_margin_top = 0.0
 content_margin_right = 0.0
 content_margin_bottom = 0.0
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_BtnNormal"]
+bg_color = Color(0.152941, 0.152941, 0.152941, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25098, 0.25098, 0.25098, 0.5)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_BtnNormal"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_BtnHover"]
@@ -72,6 +84,15 @@ content_margin_bottom = 0.0
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_SidebarRight"]
 bg_color = Color(0.12549, 0.12549, 0.12549, 1)
 border_width_left = 1
+border_color = Color(0.2, 0.2, 0.2, 1)
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_SidebarLeft"]
+bg_color = Color(0.12549, 0.12549, 0.12549, 1)
+border_width_right = 1
 border_color = Color(0.2, 0.2, 0.2, 1)
 content_margin_left = 0.0
 content_margin_top = 0.0
@@ -156,6 +177,30 @@ content_margin_top = 4.0
 content_margin_right = 12.0
 content_margin_bottom = 4.0
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_BtnNormalSquare"]
+bg_color = Color(0.152941, 0.152941, 0.152941, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25098, 0.25098, 0.25098, 0.5)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_BtnHoverSquare"]
+bg_color = Color(0.184314, 0.184314, 0.184314, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25098, 0.25098, 0.25098, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_BtnActiveSquare"]
+bg_color = Color(0.14902, 0.309804, 0.470588, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.211765, 0.537255, 0.854902, 1)
+
 [node name="BiomePainter" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -209,8 +254,114 @@ layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/separation = 0
 
+[node name="SidebarLeft" type="PanelContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout"]
+custom_minimum_size = Vector2(52, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_SidebarLeft")
+mouse_filter = 1
+
+[node name="VBox" type="VBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarLeft"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="TerrainMargin" type="MarginContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarLeft/VBox"]
+layout_mode = 2
+theme_override_constants/margin_left = 9
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 9
+theme_override_constants/margin_bottom = 8
+
+[node name="TerrainTools" type="VBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarLeft/VBox/TerrainMargin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="BtnTerrain" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarLeft/VBox/TerrainMargin/TerrainTools"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxFlat_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+tooltip_text = "Tile Terrain"
+
+[node name="Margin" type="MarginContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarLeft/VBox/TerrainMargin/TerrainTools/BtnTerrain"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="Icon" type="TextureRect" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarLeft/VBox/TerrainMargin/TerrainTools/BtnTerrain/Margin"]
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="BtnBiomes" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarLeft/VBox/TerrainMargin/TerrainTools"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxFlat_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+tooltip_text = "Real Biomes"
+
+[node name="BtnInspect" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarLeft/VBox/TerrainMargin/TerrainTools"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+mouse_filter = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxFlat_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+tooltip_text = "Biome Inspector"
+
+[node name="Margin" type="MarginContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarLeft/VBox/TerrainMargin/TerrainTools/BtnBiomes"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="Icon" type="TextureRect" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarLeft/VBox/TerrainMargin/TerrainTools/BtnBiomes/Margin"]
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Margin" type="MarginContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarLeft/VBox/TerrainMargin/TerrainTools/BtnInspect"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="Icon" type="TextureRect" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarLeft/VBox/TerrainMargin/TerrainTools/BtnInspect/Margin"]
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
 [node name="Sidebar" type="PanelContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout"]
-custom_minimum_size = Vector2(220, 0)
+custom_minimum_size = Vector2(440, 0)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_Sidebar")
 mouse_filter = 1
@@ -220,6 +371,7 @@ layout_mode = 2
 theme_override_constants/separation = 0
 
 [node name="TitleMargin" type="MarginContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox"]
+visible = false
 layout_mode = 2
 theme_override_constants/margin_left = 16
 theme_override_constants/margin_top = 16
@@ -229,7 +381,7 @@ theme_override_constants/margin_bottom = 4
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
 theme_override_font_sizes/font_size = 11
-text = "BIOMES"
+text = "TILES"
 
 [node name="ListMargin" type="MarginContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox"]
 layout_mode = 2
@@ -240,35 +392,244 @@ theme_override_constants/margin_right = 10
 
 [node name="Scroll" type="ScrollContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox/ListMargin"]
 layout_mode = 2
+size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="VBoxContainer" type="VBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox/ListMargin/Scroll"]
+[node name="SectionsContainer" type="VBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox/ListMargin/Scroll"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 4
+theme_override_constants/separation = 12
+
+[node name="InspectorPanel" type="VBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox/ListMargin"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox/ListMargin/InspectorPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "BIOME PROPERTIES"
+
+[node name="Separator" type="HSeparator" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox/ListMargin/InspectorPanel"]
+layout_mode = 2
+
+[node name="Stats" type="VBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox/ListMargin/InspectorPanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BiomeName" type="Label" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox/ListMargin/InspectorPanel/Stats"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.231373, 0.541176, 0.866667, 1)
+text = "No biome selected"
+
+[node name="Area" type="Label" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox/ListMargin/InspectorPanel/Stats"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Area: - px"
+
+[node name="Percentage" type="Label" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox/ListMargin/InspectorPanel/Stats"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Coverage: - %"
+
+[node name="Ores" type="Label" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox/ListMargin/InspectorPanel/Stats"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Projected Ores:"
+
+[node name="OreList" type="VBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/Sidebar/VBox/ListMargin/InspectorPanel/Stats"]
+layout_mode = 2
 
 [node name="CanvasArea" type="MarginContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout"]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_constants/margin_left = 0
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 0
+theme_override_constants/margin_bottom = 0
+
+[node name="VBox" type="VBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="ToolOptionsBar" type="PanelContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_Topbar")
+
+[node name="Margin" type="MarginContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar"]
+layout_mode = 2
 theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+
+[node name="ModeGroup" type="HBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BtnReplace" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin/ModeGroup"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Replace Selection"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxFlat_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+toggle_mode = true
+button_pressed = true
+
+[node name="BtnAdd" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin/ModeGroup"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Add to Selection"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxFlat_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+toggle_mode = true
+
+[node name="BtnSub" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin/ModeGroup"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Subtract from Selection"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxFlat_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+toggle_mode = true
+
+[node name="BtnIntersect" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin/ModeGroup"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Intersect Selection"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxFlat_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+toggle_mode = true
+
+[node name="BrushOptions" type="HBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="ShapeGroup" type="HBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin/BrushOptions"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="BtnShapeRound" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin/BrushOptions/ShapeGroup"]
+custom_minimum_size = Vector2(32, 28)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Round Brush"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxFlat_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+toggle_mode = true
+button_pressed = true
+
+[node name="BtnShapeSquare" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin/BrushOptions/ShapeGroup"]
+custom_minimum_size = Vector2(32, 28)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Square Brush"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxFlat_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+toggle_mode = true
+
+
+[node name="SizeInput" type="LineEdit" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin/BrushOptions"]
+custom_minimum_size = Vector2(80, 28)
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_styles/normal = SubResource("StyleBoxFlat_Input")
+placeholder_text = "size px"
+alignment = 1
+max_length = 4
+context_menu_enabled = false
+select_all_on_focus = true
+
+[node name="EraserOptions" type="HBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="ShapeGroup" type="HBoxContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin/EraserOptions"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="BtnShapeRound" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin/EraserOptions/ShapeGroup"]
+custom_minimum_size = Vector2(32, 28)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Round Eraser"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxFlat_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+toggle_mode = true
+button_pressed = true
+
+[node name="BtnShapeSquare" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin/EraserOptions/ShapeGroup"]
+custom_minimum_size = Vector2(32, 28)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Square Eraser"
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxFlat_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+toggle_mode = true
+
+
+[node name="SizeInput" type="LineEdit" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin/EraserOptions"]
+custom_minimum_size = Vector2(80, 28)
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_styles/normal = SubResource("StyleBoxFlat_Input")
+placeholder_text = "size px"
+alignment = 1
+max_length = 4
+context_menu_enabled = false
+select_all_on_focus = true
+
+[node name="WorkspaceContainer" type="MarginContainer" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 12
 
-[node name="WorkspaceDock" type="Control" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea"]
+[node name="WorkspaceDock" type="Control" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/WorkspaceContainer"]
 clip_contents = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 mouse_filter = 1
 
-[node name="WorkspacePadding" type="Control" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/WorkspaceDock"]
+[node name="WorkspacePadding" type="Control" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/WorkspaceContainer/WorkspaceDock"]
 layout_mode = 0
 size_flags_horizontal = 3
 size_flags_vertical = 3
 mouse_filter = 2
 
-[node name="CanvasContent" type="Panel" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/WorkspaceDock/WorkspacePadding"]
+[node name="CanvasContent" type="Panel" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/WorkspaceContainer/WorkspaceDock/WorkspacePadding"]
 custom_minimum_size = Vector2(1024, 1024)
 layout_mode = 2
 size_flags_horizontal = 0
@@ -276,7 +637,7 @@ size_flags_vertical = 0
 theme_override_styles/panel = SubResource("StyleBoxFlat_CanvasSheet")
 mouse_filter = 2
 
-[node name="TextureRect" type="TextureRect" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/WorkspaceDock/WorkspacePadding/CanvasContent"]
+[node name="TextureRect" type="TextureRect" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/WorkspaceContainer/WorkspaceDock/WorkspacePadding/CanvasContent"]
 texture_filter = 1
 layout_mode = 1
 anchors_preset = 15
@@ -288,7 +649,28 @@ expand_mode = 1
 stretch_mode = 5
 mouse_filter = 0
 
-[node name="SelectionOverlay" type="ReferenceRect" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/WorkspaceDock/WorkspacePadding/CanvasContent"]
+[node name="SelectionMaskBuffer" type="TextureRect" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/WorkspaceContainer/WorkspaceDock/WorkspacePadding/CanvasContent"]
+texture_filter = 1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="SelectionOverlay" type="TextureRect" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/WorkspaceContainer/WorkspaceDock/WorkspacePadding/CanvasContent"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="InspectorOverlay" type="ColorRect" parent="AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/WorkspaceContainer/WorkspaceDock/WorkspacePadding/CanvasContent"]
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -297,6 +679,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+color = Color(1, 1, 1, 0)
 border_color = Color(0.215686, 0.541176, 0.866667, 1)
 border_width = 1.5
 editor_only = false
@@ -398,6 +781,18 @@ theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
 theme_override_styles/focus = SubResource("StyleBoxFlat_BtnActive")
 tooltip_text = "Eraser (E)"
+
+[node name="Inspector" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(0.215686, 0.541176, 0.866667, 1)
+theme_override_colors/icon_focus_color = Color(0.215686, 0.541176, 0.866667, 1)
+theme_override_styles/normal = SubResource("StyleBoxFlat_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+tooltip_text = "Biome Inspector (I)"
 
 [node name="StatusBar" type="PanelContainer" parent="AppFrame/MainVerticalLayout"]
 custom_minimum_size = Vector2(0, 26)

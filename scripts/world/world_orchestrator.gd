@@ -9,6 +9,8 @@ var RENDER_DISTANCE = 3
 
 @export var tileset: TileSet
 @export var map_size: int = 2000
+@export var force_block_id: int = -1
+@export var spawn_building_type: String = ""
 
 # ═══════════════════════════════════════════════════════════════
 # MODULES
@@ -166,6 +168,17 @@ func _ready():
 
 	# 6. Start World Generation
 	update_chunks(true)
+	
+	# 7. Spawn Initial Building if set
+	if spawn_building_type != "" and building_sys:
+		var spawn_pos = Vector2i(0, 0)
+		if not building_sys.building_roots.has(spawn_pos):
+			var b_size = Vector2i(1, 1) # Default size for core
+			building_sys.building_roots[spawn_pos] = {"type": spawn_building_type, "size": b_size}
+			var footprint = building_sys.generate_footprint(spawn_pos, b_size.x, b_size.y)
+			for t in footprint:
+				building_sys.occupied_tiles[t] = true
+			print("[ORCHESTRATOR] Initial building spawned: ", spawn_building_type, " at ", spawn_pos)
 
 func _init_modules():
 	# Generation Worker
@@ -315,7 +328,7 @@ func _process_generation_queue(budget: int) -> int:
 			var river = cached["river"][_current_tile_idx]
 			var scatter = cached["scatter"][_current_tile_idx]
 			var forest = cached["forest"][_current_tile_idx]
-			var b_name = ["deep_sea","beach","plains","forest","jungle","desert","tundra","taiga","savannah","volcano","bamboo","salt_desert"][biome_idx]
+			var b_name = ["vùng đại dương","vùng sông, hồ","đồng bằng","vùng rừng cây maple","vùng rừng cây oak","sa mạc","vùng tuyết","vùng rừng cây pine","vùng than đá","vùng núi lửa","vùng rừng cây cà phê","sa mạc muối"][biome_idx]
 			
 			# Paint tile
 			var sid = _biome_to_tile_id(b_name, land, river, scatter)
@@ -414,6 +427,8 @@ func teleport_to_nearest_biome(type: String):
 # ═══════════════════════════════════════════════════════════════
 
 func _biome_to_tile_id(biome: String, land_val: float, river_val: float, _scatter_val: float) -> int:
+	if force_block_id != -1: return force_block_id
+	
 	if land_val < 0.2: return 21        # Biển sâu (Deep sea)
 
 	# Tạm thời vô hiệu hóa gạch sông để xóa viền xanh
@@ -464,12 +479,25 @@ func _add_rotation_test_object(parent: Node2D, center: Vector2, size: Vector2i, 
 		return
 
 	var pivot = Node2D.new(); pivot.position = center; pivot.y_sort_enabled = true; parent.add_child(pivot)
-	var sprite = Sprite2D.new(); pivot.add_child(sprite); sprite.scale = Vector2(s2d, s2d); sprite.centered = true
+	var sprite = Sprite2D.new(); pivot.add_child(sprite); sprite.scale = Vector2(s2d, s2d)
+	
+	# Căn chỉnh dựa trên texture_origin của isometric system (2373 cho 500x5000)
+	sprite.centered = false
 	match type:
-		"windmill": sprite.texture = _windmill_tex
-		"camfire":  sprite.texture = _camfire_tex
-		"core":     sprite.texture = _core_tex
-		_: if _tree_defs.has(type): sprite.texture = _tree_defs[type]["tex"]
+		"windmill": 
+			sprite.texture = _windmill_tex
+			sprite.offset = Vector2(-512, -512) # Windmill 1024x1024 centered
+		"camfire":  
+			sprite.texture = _camfire_tex
+			sprite.offset = Vector2(-512, -512) # Camfire 1024x1024 centered
+		"core":     
+			sprite.texture = _core_tex
+			# Core 500x5000, origin 2373
+			sprite.offset = Vector2(-250, -2373)
+		_: 
+			if _tree_defs.has(type): 
+				sprite.texture = _tree_defs[type]["tex"]
+				sprite.centered = true # Giữ centered cho cây cối vì chúng dùng offset riêng trong _tree_defs
 
 	_register_object_system(pivot, type, size)
 

@@ -97,13 +97,21 @@ func update_ghost(m_pos: Vector2, s2d: float, off_x: float, off_y: float):
 	var snapped_center = get_geometric_center(temp_layer, footprint)
 	
 	ghost_sprite.position = snapped_center
-	if ghost_sprite.texture:
-		var h = ghost_sprite.texture.get_height()
-		ghost_sprite.position.y -= (h * s2d) / 2.0
+	ghost_sprite.scale = Vector2(s2d, s2d)
+	ghost_sprite.centered = false
+	
+	if selected_building == "core":
+		ghost_sprite.offset = Vector2(-250, -2373)
+	elif selected_building == "windmill" or selected_building == "camfire":
+		ghost_sprite.offset = Vector2(-512, -512)
+	else:
+		ghost_sprite.centered = true
+		if ghost_sprite.texture:
+			var h = ghost_sprite.texture.get_height()
+			ghost_sprite.position.y -= (h * s2d) / 2.0
 	
 	ghost_sprite.position.x += off_x
 	ghost_sprite.position.y += off_y
-	ghost_sprite.scale = Vector2(s2d, s2d)
 	
 	var occupied = is_footprint_occupied(footprint)
 	preview_outline.default_color = Color(1, 0, 0, 0.8) if occupied else Color(1, 1, 1, 0.8)

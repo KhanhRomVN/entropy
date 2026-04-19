@@ -72,8 +72,8 @@ script = ExtResource("4_daynight")
 color = Color(0.333333, 0.333333, 0.333333, 1)
 script = ExtResource("1_map")
 tileset = ExtResource("2_tiles")
-force_block_id = -1
-spawn_building_type = ""
+force_block_id = 2
+spawn_building_type = "core"
 
 [node name="Player" parent="." instance=ExtResource("5_player")]
 position = Vector2(500, 250)
