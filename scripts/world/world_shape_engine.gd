@@ -3,6 +3,8 @@
 # Thread-safe: tất cả method đều pure function
 class_name WorldShapeEngine
 
+const OCEAN_THRESHOLD: float = 0.1
+
 # ═══════════════════════════════════════════════════════════════
 # STATE
 # ═══════════════════════════════════════════════════════════════
@@ -35,6 +37,8 @@ var climate_humid_noise: FastNoiseLite = null   # Độ ẩm
 
 var continent_type: String = "pangaea"
 
+var biome_color_table: Dictionary = {}
+
 # ═══════════════════════════════════════════════════════════════
 # SETUP
 # ═══════════════════════════════════════════════════════════════
@@ -45,7 +49,8 @@ func setup(
 	_warp_noise: FastNoiseLite,
 	_detail_noise: FastNoiseLite,
 	_mask_image: Image = null,
-	_biome_mask: Image = null
+	_biome_mask: Image = null,
+	_biomes_snapshot: Array = []
 ):
 	mask_image = _mask_image
 	biome_mask = _biome_mask
@@ -54,9 +59,35 @@ func setup(
 	if has_mask:
 		mask_size = Vector2(mask_image.get_width(), mask_image.get_height())
 	continent_type = _continent_type
-	map_scale = _map_size * 0.5
+	map_scale = _map_size
 	warp_noise = _warp_noise
 	detail_noise = _detail_noise
+
+	# Initialize Dynamic Biome Table from snapshot
+	biome_color_table = {}
+	if !_biomes_snapshot.is_empty():
+		for b in _biomes_snapshot:
+			var color_str = str(b.get("color", "(1, 1, 1, 1)"))
+			# Parse "(r, g, b, a)" string to Color
+			var c_plain = color_str.replace("(", "").replace(")", "").replace(" ", "")
+			var parts = c_plain.split(",")
+			if parts.size() >= 3:
+				var col = Color(float(parts[0]), float(parts[1]), float(parts[2]), float(parts[3]) if parts.size() > 3 else 1.0)
+				biome_color_table[b.id] = col
+	
+	# Fallback/Default if snapshot empty or incomplete
+	var defaults = {
+		"deep_sea": Color("#1a3a6b"), "beach": Color("#2a6896"), "plains": Color("#7ab648"),
+		"forest": Color("#3a7a45"), "jungle": Color("#1e5c30"), "desert": Color("#d4ac0d"),
+		"tundra": Color("#8aabb8"), "taiga": Color("#4d6d5d"), "volcano": Color("#9a3020"),
+		"salt_desert": Color("#ddeef8"), "bamboo": Color("#5c3a2a"), "coal": Color("#2b2b2b")
+	}
+	for k in defaults:
+		if !biome_color_table.has(k): biome_color_table[k] = defaults[k]
+	
+	printerr("[DEBUG-ENGINE] Final Biome Color Table (count: %d):" % biome_color_table.size())
+	for k in biome_color_table:
+		printerr("  - %s: %s" % [k, biome_color_table[k].to_html(false)])
 
 	# Tạo climate noises
 	climate_temp_noise  = _make_noise(world_seed + 2222, FastNoiseLite.TYPE_PERLIN, 0.0008, 3)
@@ -106,6 +137,7 @@ func setup(
 	print("[SHAPE-ENGINE] Setup | Template: %s | Islands: %d | Mask: %s" % [
 		_continent_type, island_circles.size(), "YES" if has_mask else "NO"
 	])
+	print("[SHAPE-ENGINE] Rendered %d cards successfully" % [resource_deposits.size() + special_zones.size()])
 
 func _make_noise(s, t, f, o) -> FastNoiseLite:
 	var n = FastNoiseLite.new()
@@ -199,51 +231,57 @@ func polygon_sdf(norm_pos: Vector2, polygon: PackedVector2Array, aabb: Rect2) ->
 				inside = !inside
 	return d * (-1.0 if inside else 1.0)
 
-func get_land_value(tile_pos: Vector2) -> float:
-	if is_nan(tile_pos.x) or is_nan(tile_pos.y): return 0.0
-	var norm = tile_pos / map_scale
-	if warp_noise:
-		var wx1 = warp_noise.get_noise_2d(tile_pos.x * 0.004, tile_pos.y * 0.004)
-		var wy1 = warp_noise.get_noise_2d(tile_pos.y * 0.004, tile_pos.x * 0.004 + 100.0)
-		var warp1 = Vector2(wx1, wy1) * 0.15
-		var wx2 = warp_noise.get_noise_2d(tile_pos.x * 0.015 + 300.0, tile_pos.y * 0.015)
-		var wy2 = warp_noise.get_noise_2d(tile_pos.y * 0.015 + 300.0, tile_pos.x * 0.015)
-		var warp2 = Vector2(wx2, wy2) * 0.05
-		var wx3 = detail_noise.get_noise_2d(tile_pos.x * 0.05, tile_pos.y * 0.05)
-		var wy3 = detail_noise.get_noise_2d(tile_pos.y * 0.05 + 500.0, tile_pos.x * 0.05)
-		var warp3 = Vector2(wx3, wy3) * 0.02
-		norm += warp1 + warp2 + warp3
-	var sdf: float = 1.0
-	if has_mask:
-		# Warp UV để bờ biển ảnh mask không bị thẳng tắp
+func get_land_value(pos: Vector2) -> float:
+	if is_nan(pos.x) or is_nan(pos.y): return 0.0
+	var norm = pos / map_scale
+	
+	if warp_noise and !has_mask:
+		var wx1 = warp_noise.get_noise_2d(pos.x * 0.004, pos.y * 0.004)
+		var wy1 = warp_noise.get_noise_2d(pos.y * 0.004, pos.x * 0.004 + 100.0)
+		norm += Vector2(wx1, wy1) * 0.15
+	
+	
+	if has_mask and mask_image:
+		var mask_size = mask_image.get_size()
 		var uv = (norm * 0.5) + Vector2(0.5, 0.5)
 		
+		# Log high-frequency sampling data for debugging (periodically)
+		if Time.get_ticks_msec() % 2000 < 5:
+			print("[SHAPE-TRACE] Sample | Pos:%s | UV:%s | HasMask:%s" % [pos, uv, has_mask])
+
 		if uv.x >= 0.0 and uv.x < 1.0 and uv.y >= 0.0 and uv.y < 1.0:
-			var px = int(uv.x * (mask_size.x - 1))
-			var py = int(uv.y * (mask_size.y - 1))
-			var pixel_v = mask_image.get_pixel(px, py).v
+			var px = int(uv.x * mask_size.x)
+			var py = int(uv.y * mask_size.y)
+			var color = mask_image.get_pixel(px, py)
 			
-			# Chuyển đổi Brightness (0->1) thành SDF (-0.1 -> 0.1)
-			# 1.0 (Trắng) -> -0.1 (Trong đất)
-			# 0.0 (Đen)   ->  0.1 (Ngoài biển)
-			sdf = (0.5 - pixel_v) * 0.25
-		else:
-			# Ngoài phạm vi ảnh mask coi như là biển sâu
-			sdf = 0.5
-	else:
-		var sdf_a = polygon_sdf(norm, continent_polygon_a, aabb_a)
-		sdf = sdf_a
-		if has_polygon_b:
-			sdf = min(sdf_a, polygon_sdf(norm, continent_polygon_b, aabb_b))
-	for island in island_circles:
-		var d_sq = norm.distance_squared_to(island["pos"])
-		if d_sq <= island["r_eff_sq"]:
-			sdf = min(sdf, sqrt(d_sq) - island["radius"])
-	for lake in lake_circles:
-		var d_sq = norm.distance_squared_to(lake["pos"])
-		if d_sq <= lake["r_eff_sq"]:
-			sdf = max(sdf, -(sqrt(d_sq) - lake["radius"]))
-	return smoothstep(coast_width, -coast_width * 0.5, sdf)
+			var d_sea = _color_dist(color, Color("#1a3a6b"))
+			var d_water = _color_dist(color, Color("#2a6896"))
+			
+			# Logic nhận diện nước linh hoạt - Tăng ngưỡng lên 0.15 để tránh bỏ sót
+			if d_sea < 0.15 or d_water < 0.15:
+				return 0.5 # Nước
+			else:
+				return -0.1 # Đất liền
+		return 0.5
+	
+	# Fallback to polygon SDF
+	var sdf_a = polygon_sdf(norm, continent_polygon_a, aabb_a)
+	var sdf = sdf_a
+	if has_polygon_b:
+		sdf = min(sdf_a, polygon_sdf(norm, continent_polygon_b, aabb_b))
+	return sdf
+
+## Unified Land Detection
+## Returns true if the coordinate is Land, false if it is Ocean
+func is_land(pos: Vector2, detail_noise: FastNoiseLite) -> bool:
+	var base_land = get_land_value(pos)
+	
+	# APPLY TERRAIN DETAIL NOISE (Standardized across Generator and Map)
+	var detail = 0.0
+	if detail_noise:
+		detail = detail_noise.get_noise_2d(pos.x * 0.1, pos.y * 0.1) * 0.05
+	
+	return (base_land + detail) <= OCEAN_THRESHOLD
 
 func get_climate(tile_pos: Vector2, land_value: float) -> Dictionary:
 	var norm_y = clamp((tile_pos.y / map_scale + 1.0) * 0.5, 0.0, 1.0)
@@ -252,9 +290,10 @@ func get_climate(tile_pos: Vector2, land_value: float) -> Dictionary:
 	return {"temperature": temperature, "humidity": humidity}
 
 func get_biome(tile_pos: Vector2, land_value: float) -> Dictionary:
-	if land_value <= 0.0: return {"biome": "deep_sea", "strength": 1.0}
+	# Note: caller should usually pass the 'noisy' land value if they want 1:1 match with is_land
+	if land_value > OCEAN_THRESHOLD: return {"biome": "deep_sea", "strength": 1.0}
 	
-	if has_biome_mask:
+	if has_biome_mask and biome_mask:
 		var norm = tile_pos / map_scale
 		var uv = (norm * 0.5) + Vector2(0.5, 0.5)
 		if uv.x >= 0.0 and uv.x < 1.0 and uv.y >= 0.0 and uv.y < 1.0:
@@ -262,29 +301,24 @@ func get_biome(tile_pos: Vector2, land_value: float) -> Dictionary:
 			var py = int(uv.y * (biome_mask.get_height() - 1))
 			var color = biome_mask.get_pixel(px, py)
 			
-			# Map color back to biome ID
-			# Chúng ta so sánh màu sắc (nên dùng Delta E hoặc đơn giản là khoảng cách màu)
-			var best_biome = "plains"
+			var best_biome = "deep_sea"
 			var min_dist = 100.0
 			
-			# Danh sách màu sắc tương ứng (nên đồng bộ với Tool)
-			var colors = {
-				"deep_sea": Color("#1a3a6b"), "beach": Color("#2a6896"), "plains": Color("#7ab648"),
-				"forest": Color("#3a7a45"), "jungle": Color("#1e5c30"), "desert": Color("#c8a050"),
-				"savannah": Color("#9aaf50"), "tundra": Color("#8aabb8"), "taiga": Color("#4d6d5d"),
-				"volcano": Color("#9a3020"), "salt_desert": Color("#ddeef8"), "bamboo": Color("#5c7a3a")
-			}
-			
-			for b_id in colors:
-				var d = _color_dist(color, colors[b_id])
+			for b_id in biome_color_table:
+				var d = _color_dist(color, biome_color_table[b_id])
 				if d < min_dist:
 					min_dist = d
 					best_biome = b_id
 			
-			if min_dist < 0.1: # Nếu khớp màu tốt
+			# Tăng ngưỡng lên 0.4 để chấp nhận các sai lệch màu nhẹ trong entmap
+			if min_dist < 0.4:
 				return {"biome": best_biome, "strength": 1.0}
+				
+			# Nếu không khớp bất kỳ biome nào, log màu để debug
+			if tile_pos.distance_to(Vector2.ZERO) < 200: # Chỉ log quanh tâm để tránh spam
+				print("[SHAPE-DEBUG] No biome match at %s | UV:%s | Color:%s | MinDist:%.2f" % [tile_pos, uv, color.to_html(false), min_dist])
 
-	return {"biome": "plains", "strength": 1.0}
+	return {"biome": "deep_sea", "strength": 1.0}
 
 func _color_dist(c1: Color, c2: Color) -> float:
 	return abs(c1.r - c2.r) + abs(c1.g - c2.g) + abs(c1.b - c2.b)

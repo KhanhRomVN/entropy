@@ -8,9 +8,10 @@ const CHUNK_SIZE = 16
 var RENDER_DISTANCE = 3
 
 @export var tileset: TileSet
-@export var map_size: int = 2000
+@export var map_size: int = 1024 # Diameter (Full extent -X to +X is world_radius*2)
 @export var force_block_id: int = -1
 @export var spawn_building_type: String = ""
+@export var override_biome_map: String = ""
 
 # ═══════════════════════════════════════════════════════════════
 # MODULES
@@ -23,7 +24,8 @@ var ui_manager: Node
 # WORLD STATE
 # ═══════════════════════════════════════════════════════════════
 var shape_engine: WorldShapeEngine = null
-var active_continent_type: String = ""
+var active_biomes_snapshot: Array = []
+var active_continent_type: String = "pangaea"
 var world_seed: int = 0
 
 var detail_noise: FastNoiseLite
@@ -137,23 +139,29 @@ func _ready():
 	# Ưu tiên load mask nếu template yêu cầu hoặc có đường dẫn hợp lệ
 	var should_use_mask = template.get("use_mask", false) or template.has("mask_path")
 	
-	if should_use_mask:
+	var biome_mask_img: Image = null
+	if override_biome_map.ends_with(".entmap"):
+		var map_data = _load_entmap_data(override_biome_map)
+		mask_img = map_data.get("image")
+		active_biomes_snapshot = map_data.get("snapshot", [])
+		biome_mask_img = mask_img
+		printerr("[DEBUG-ORCHESTRATOR] Loaded .entmap: ", override_biome_map, " | Snapshot count: ", active_biomes_snapshot.size())
+		print("[ORCHESTRATOR] SUCCESS: Land & Biome mask nạp từ .entmap -> ", override_biome_map)
+	elif should_use_mask:
 		var path = template.get("mask_path", "res://assets/world/continent_mask.png")
 		if ResourceLoader.exists(path):
 			mask_img = load(path).get_image()
 			print("[ORCHESTRATOR] SUCCESS: Mask loaded from -> ", path)
-		else:
-			push_warning("[ORCHESTRATOR] WARNING: Mask file NOT FOUND at %s. Falling back to Polygon mode." % path)
 	
-	# Load Biome Mask (từ Continent Painter Tool)
-	var biome_mask_img: Image = null
-	var biome_path = "res://assets/world/custom_biomes.png"
-	if ResourceLoader.exists(biome_path):
-		biome_mask_img = load(biome_path).get_image()
-		print("[ORCHESTRATOR] Biome Mask detected and loaded.")
+	# Fallback Biome Mask if not set from entmap
+	if !biome_mask_img:
+		var biome_path = "res://assets/world/custom_biomes.png"
+		if ResourceLoader.exists(biome_path):
+			biome_mask_img = load(biome_path).get_image()
 
 	shape_engine = WorldShapeEngine.new()
-	shape_engine.setup(world_seed, active_continent_type, float(map_size), warp_noise, detail_noise, mask_img, biome_mask_img)
+	# map_size is Diameter, so Radius = map_size / 2.0
+	shape_engine.setup(world_seed, active_continent_type, float(map_size) / 2.0, warp_noise, detail_noise, mask_img, biome_mask_img, active_biomes_snapshot)
 
 	# 3. Layer setup
 	temp_layer = TileMapLayer.new()
@@ -184,7 +192,7 @@ func _init_modules():
 	# Generation Worker
 	gen_worker = load("res://scripts/world/generation_worker.gd").new()
 	add_child(gen_worker)
-	gen_worker.setup(shape_engine, map_size, detail_noise, forest_noise, river_noise, river_mask_noise, scatter_noise)
+	gen_worker.setup(shape_engine, map_size / 2, detail_noise, forest_noise, river_noise, river_mask_noise, scatter_noise)
 
 	# Building System
 	building_sys = load("res://scripts/world/building_system.gd").new()
@@ -231,13 +239,14 @@ func _setup_tree_renderer():
 
 func _process(delta):
 	# 1. Update Modules
-	if building_sys.selected_building != "":
+	if building_sys and building_sys.selected_building != "":
 		building_sys.update_ghost(get_global_mouse_position(), ui_manager.scale_slider.value, ui_manager.x_slider.value, ui_manager.y_slider.value)
 	
 	_ui_update_timer += delta
 	if _ui_update_timer >= 0.2:
 		var current_fps = Engine.get_frames_per_second()
-		ui_manager.update_debug_labels(current_fps, _t_noise, _t_tiles, _t_objects, _t_physics, _static_objects.size(), _lighting_objects.size(), _generation_queue.size(), _removal_queue.size())
+		if ui_manager:
+			ui_manager.update_debug_labels(current_fps, _t_noise, _t_tiles, _t_objects, _t_physics, _static_objects.size(), _lighting_objects.size(), _generation_queue.size(), _removal_queue.size())
 		_ui_update_timer = 0.0
 		_t_noise = 0; _t_tiles = 0; _t_objects = 0; _t_physics = 0
 
@@ -265,7 +274,7 @@ func update_chunks(force: bool = false):
 	if not force and cp.distance_to(_last_cam_update_pos) < 256.0: return
 	_last_cam_update_pos = cp
 	
-	var tp = temp_layer.local_to_map(temp_layer.to_local(cp))
+	var tp = local_to_cartesian_idx(cp)
 	var cur_c = Vector2i(floorf(tp.x / 16.0), floorf(tp.y / 16.0))
 	var zoom_factor = 1.0 / camera.zoom.x
 	var dist = clampi(ceili(RENDER_DISTANCE * zoom_factor), RENDER_DISTANCE, 10)
@@ -292,6 +301,8 @@ func _check_and_add_chunk(cp: Vector2i):
 		_generation_queue.push_back(cp); _generation_set[cp] = true
 		gen_worker.trigger_task(cp)
 
+const BIOME_NAMES_LIST = ["deep_sea", "beach", "plains", "forest", "jungle", "desert", "tundra", "taiga", "savannah", "volcano", "bamboo", "salt_desert", "coal"]
+
 func _process_generation_queue(budget: int) -> int:
 	var start_t = Time.get_ticks_usec()
 	var tiles_done = 0
@@ -313,6 +324,7 @@ func _process_generation_queue(budget: int) -> int:
 		if not chunks.has(_current_gen_chunk): _create_chunk_node(_current_gen_chunk)
 		var node = chunks[_current_gen_chunk]
 		var layer = node.height_layers[0]
+		var fluid_l = node.fluid_layer
 		var prop_l = node.prop_layer
 		var start_tile = _current_gen_chunk * 16
 		
@@ -328,11 +340,16 @@ func _process_generation_queue(budget: int) -> int:
 			var river = cached["river"][_current_tile_idx]
 			var scatter = cached["scatter"][_current_tile_idx]
 			var forest = cached["forest"][_current_tile_idx]
-			var b_name = ["vùng đại dương","vùng sông, hồ","đồng bằng","vùng rừng cây maple","vùng rừng cây oak","sa mạc","vùng tuyết","vùng rừng cây pine","vùng than đá","vùng núi lửa","vùng rừng cây cà phê","sa mạc muối"][biome_idx]
-			
-			# Paint tile
+			var b_name = BIOME_NAMES_LIST[biome_idx]
 			var sid = _biome_to_tile_id(b_name, land, river, scatter)
-			layer.set_cell(gpos, sid, Vector2i(0, 0))
+			var alt = 1 if FLUID_TILE_IDS.has(sid) else 0
+			
+			var cam_tp = Vector2.ZERO
+			if camera:
+				cam_tp = local_to_cartesian_idx(camera.global_position)
+
+			# Purged [GEN-TRACE] noise
+			layer.set_cell(gpos, sid, Vector2i(0, 0), alt)
 			
 			# Props
 			var prop_id = _biome_to_prop(b_name, forest, scatter)
@@ -402,7 +419,8 @@ func _unhandled_input(event):
 			building_sys.cancel_building()
 
 func _on_map_teleport_requested(target_tile: Vector2, _expected_biome: String):
-	var world_pos = temp_layer.map_to_local(Vector2i(target_tile))
+	# Dịch chuyển dựa trên tọa độ Cartesian chuẩn hóa (Bypass TileMap transformation drift)
+	var world_pos = cartesian_idx_to_local(target_tile)
 	
 	if player:
 		player.global_position = world_pos
@@ -412,6 +430,31 @@ func _on_map_teleport_requested(target_tile: Vector2, _expected_biome: String):
 		camera.force_update_scroll()
 		if camera.has_method("reset_smoothing"):
 			camera.reset_smoothing()
+			
+	# --- TELEPORT AUDIT ---
+	var ix = target_tile.x; var iy = target_tile.y
+	var land = shape_engine.get_land_value(target_tile)
+	var bd = shape_engine.get_biome(target_tile, land)
+	var game_biome = bd["biome"]
+	print(">>>> [TELEPORT-AUDIT] <<<<")
+	print("  Target (Cartesian): %s" % target_tile)
+	print("  Expected (Map):     %s" % _expected_biome)
+	print("  Actual (Game):       %s" % game_biome)
+	print("  Land Value:         %.3f" % land)
+	print("  Status:             %s" % ("MATCH" if game_biome.to_lower() == _expected_biome.to_lower() else "MISMATCH / DRIFT"))
+	print(">>>>>>>>>>>>>>>>>>>>>>>>")
+
+func local_to_cartesian_idx(world_pos: Vector2) -> Vector2:
+	# Isometric Math for 500x250 tiles
+	var px = world_pos.x; var py = world_pos.y
+	var ix = (px / 250.0 + py / 125.0) / 2.0
+	var iy = (py / 125.0 - px / 250.0) / 2.0
+	var res = Vector2(ix, iy)
+	return res
+
+func cartesian_idx_to_local(idx: Vector2) -> Vector2:
+	var res = Vector2((idx.x - idx.y) * 250.0, (idx.x + idx.y) * 125.0)
+	return res
 	
 	update_chunks(true)
 	ui_manager.toggle_world_map(false)
@@ -419,7 +462,8 @@ func _on_map_teleport_requested(target_tile: Vector2, _expected_biome: String):
 func teleport_to_nearest_biome(type: String):
 	for zone in shape_engine.biome_zones:
 		if zone["type"] == type:
-			camera.global_position = zone["pos"] * shape_engine.map_scale
+			var tile_pos = Vector2i(zone["pos"] * shape_engine.map_scale)
+			camera.global_position = temp_layer.map_to_local(tile_pos)
 			update_chunks(true); return
 
 # ═══════════════════════════════════════════════════════════════
@@ -429,25 +473,26 @@ func teleport_to_nearest_biome(type: String):
 func _biome_to_tile_id(biome: String, land_val: float, river_val: float, _scatter_val: float) -> int:
 	if force_block_id != -1: return force_block_id
 	
-	if land_val < 0.2: return 21        # Biển sâu (Deep sea)
-
-	# Tạm thời vô hiệu hóa gạch sông để xóa viền xanh
-	# if river_val < 0.3: return 3
-	# if river_val < 0.7: return 13
+	# Global Ocean threshold - strictly enforce
+	if land_val > 0.1: 
+		return 21 # Water
 
 	match biome:
-		"tundra":    return 8
-		"taiga":     return 7
-		"volcano":   return 27 if land_val > 0.5 else 26
-		"desert":    return 2
-		"savannah":  return 4
-		"jungle":    return 9
-		"beach":     return 2
-		"bamboo":    return 10
+		"tundra":      return 8
+		"taiga":       return 7
+		"volcano":     return 27 if land_val > 0.5 else 26
+		"desert":      return 2
+		"savannah":    return 4
+		"jungle":      return 9
+		"beach":       return 2
+		"bamboo":      return 10
+		"coal":        return 10
 		"salt_desert": return 8
-		"forest":    return 1
-		"plains":    return 1
-		_:           return 1
+		"forest":      return 1
+		"plains":      return 1
+		"deep_sea":    return 21
+		_:             
+			return 2 if land_val < 0.1 else 21 # Default to sand if on land, ocean if not
 
 func _biome_to_prop(biome: String, forest_val: float, scatter_val: float) -> int:
 	match biome:
@@ -460,7 +505,8 @@ func _biome_to_prop(biome: String, forest_val: float, scatter_val: float) -> int
 		"jungle":
 			if forest_val > 0.2: return 23
 		"desert":
-			if forest_val > 0.6: return 20
+			# Xóa cactus theo yêu cầu người dùng
+			if forest_val > 0.6: return -1 
 		"bamboo":
 			if forest_val > 0.3: return 19
 	return -1
@@ -472,7 +518,7 @@ func _biome_to_prop(biome: String, forest_val: float, scatter_val: float) -> int
 func _add_rotation_test_object(parent: Node2D, center: Vector2, size: Vector2i, type: String):
 	var s2d = ui_manager.scale_slider.value if ui_manager else 1.0
 	if _tree_renderer and type in MULTIMESH_TREE_TYPES:
-		var tp = temp_layer.local_to_map(temp_layer.to_local(center))
+		var tp = local_to_cartesian_idx(center)
 		var cp = Vector2i(floorf(float(tp.x)/16.0), floorf(float(tp.y)/16.0))
 		var off = _tree_defs[type]["offset"].y if _tree_defs.has(type) else 0.0
 		_tree_renderer.add_tree(type, center, s2d, off, cp)
@@ -503,7 +549,7 @@ func _add_rotation_test_object(parent: Node2D, center: Vector2, size: Vector2i, 
 
 
 func _register_object_system(pivot: Node2D, type: String, size: Vector2i):
-	var cp = temp_layer.local_to_map(temp_layer.to_local(pivot.position))
+	var cp = local_to_cartesian_idx(pivot.position)
 	var c_pos = Vector2i(floorf(cp.x / 16.0), floorf(cp.y / 16.0))
 	if not _chunk_objects.has(c_pos): _chunk_objects[c_pos] = []
 	_chunk_objects[c_pos].append(pivot)
@@ -524,3 +570,22 @@ func _spatial_register(n):
 	_spatial_hash[c].append(n)
 func _spatial_unregister(n):
 	var c = Vector2i(n.global_position/1000.0); if _spatial_hash.has(c): _spatial_hash[c].erase(n)
+
+func _load_entmap_data(path: String) -> Dictionary:
+	var result = {"image": null, "snapshot": []}
+	var f = FileAccess.open(path, FileAccess.READ)
+	if not f: return result
+	
+	var json_str = f.get_as_text()
+	f.close()
+	
+	var json = JSON.new()
+	if json.parse(json_str) == OK:
+		var data = json.data
+		result["snapshot"] = data.get("biomes_snapshot", [])
+		if data.has("pixel_data") and data.pixel_data is String:
+			var buffer = Marshalls.base64_to_raw(data.pixel_data)
+			var img = Image.new()
+			if img.load_png_from_buffer(buffer) == OK:
+				result["image"] = img
+	return result

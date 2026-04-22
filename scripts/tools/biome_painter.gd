@@ -9,18 +9,18 @@ const SAVE_PATH = "res://assets/world/custom_biomes.png"
 
 var TILES: Array = []
 var STATIC_BIOMES: Array = [
-	{"id": "plains", "name": "Đồng bằng", "color": Color("#7ab648"), "desc": "Bản đồ cỏ xanh mượt"},
-	{"id": "tundra", "name": "Vùng tuyết", "color": Color("#8aabb8"), "desc": "Nơi băng giá vĩnh cửu"},
-	{"id": "desert", "name": "Sa mạc", "color": Color("#c8a050"), "desc": "Cát vàng mênh mông"},
-	{"id": "salt_desert", "name": "Sa mạc muối", "color": Color("#ddeef8"), "desc": "Cánh đồng muối trắng xóa"},
-	{"id": "volcano", "name": "Vùng núi lửa", "color": Color("#9a3020"), "desc": "Dòng lava nóng bỏng"},
-	{"id": "deep_sea", "name": "Vùng đại dương", "color": Color("#1a3a6b"), "desc": "Đại dương xanh thẳm"},
-	{"id": "beach", "name": "Vùng sông, hồ", "color": Color("#2a6896"), "desc": "Hồ nước ngọt hiền hòa"},
-	{"id": "coal", "name": "Vùng than đá", "color": Color("#2b2b2b"), "desc": "Mỏ than đá trù phú"},
-	{"id": "bamboo", "name": "Vùng rừng cây cà phê", "color": Color("#5c3a2a"), "desc": "Rừng cà phê thơm ngát"},
-	{"id": "forest", "name": "Vùng rừng cây maple", "color": Color("#3a7a45"), "desc": "Rừng phong đỏ thắm"},
-	{"id": "jungle", "name": "Vùng rừng cây oak", "color": Color("#1e5c30"), "desc": "Rừng sồi già cỗi"},
-	{"id": "taiga", "name": "Vùng rừng cây pine", "color": Color("#4d6d5d"), "desc": "Rừng thông bạt ngàn"},
+	{"id": "plains", "name": "Đồng bằng", "color": Color("#7ab648"), "desc": "Bản đồ cỏ xanh mượt", "climate": "temperate"},
+	{"id": "tundra", "name": "Vùng tuyết", "color": Color("#8aabb8"), "desc": "Nơi băng giá vĩnh cửu", "climate": "polar"},
+	{"id": "desert", "name": "Sa mạc", "color": Color("#d4ac0d"), "desc": "Cát vàng mênh mông", "climate": "arid"},
+	{"id": "salt_desert", "name": "Sa mạc muối", "color": Color("#ddeef8"), "desc": "Cánh đồng muối trắng xóa", "climate": "arid"},
+	{"id": "volcano", "name": "Vùng núi lửa", "color": Color("#9a3020"), "desc": "Dòng lava nóng bỏng", "climate": "special"},
+	{"id": "deep_sea", "name": "Vùng đại dương", "color": Color("#1a3a6b"), "desc": "Đại dương xanh thẳm", "climate": "special"},
+	{"id": "beach", "name": "Vùng sông, hồ", "color": Color("#2a6896"), "desc": "Hồ nước ngọt hiền hòa", "climate": "special"},
+	{"id": "coal", "name": "Vùng than đá", "color": Color("#2b2b2b"), "desc": "Mỏ than đá trù phú", "climate": "special"},
+	{"id": "bamboo", "name": "Vùng rừng cây cà phê", "color": Color("#5c3a2a"), "desc": "Rừng cà phê thơm ngát", "climate": "tropical"},
+	{"id": "forest", "name": "Vùng rừng cây maple", "color": Color("#3a7a45"), "desc": "Rừng phong đỏ thắm", "climate": "temperate"},
+	{"id": "jungle", "name": "Vùng rừng cây oak", "color": Color("#1e5c30"), "desc": "Rừng sồi già cỗi", "climate": "temperate"},
+	{"id": "taiga", "name": "Vùng rừng cây pine", "color": Color("#4d6d5d"), "desc": "Rừng thông bạt ngàn", "climate": "polar"},
 ]
 var current_sidebar_view = "tiles"
 
@@ -56,6 +56,8 @@ var zoom_start_val: float
 var pan_start_pos: Vector2
 var canvas_start_pos: Vector2
 var last_draw_pos: Vector2
+var last_click_pos: Vector2 = Vector2(-1, -1)
+var current_save_path: String = ""
 enum SelectionMode { REPLACE, ADD, SUBTRACT, INTERSECT }
 enum BrushShape { ROUND, SQUARE }
 var current_selection_mode = SelectionMode.REPLACE
@@ -91,6 +93,8 @@ var has_selection: bool = false
 
 @onready var tabs_bar = $AppFrame/MainVerticalLayout/Topbar/Margin/HBox/Tabs
 @onready var modal_new_file = $OverlayLayer/NewFileModal
+@onready var save_dialog = $SaveDialog
+@onready var open_dialog = $OpenDialog
 
 # Tool Options UI
 @onready var tool_options_bar = $AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar
@@ -197,9 +201,7 @@ func _ready():
 
 func _setup_initial_workspace():
 	tabs_bar.tab_count = 0
-	_create_workspace("Untitled-1", CANVAS_SIZE)
-	tabs_bar.add_tab("Untitled-1")
-	_switch_workspace(0)
+	_switch_workspace(-1)
 
 func _create_workspace(ws_name: String, size: Vector2i):
 	var img = Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
@@ -227,7 +229,8 @@ func _create_workspace(ws_name: String, size: Vector2i):
 		"undo_stack": undo,
 		"selection_mask": mask,
 		"zoom": 1.0,
-		"scroll": Vector2(2000, 2000)
+		"scroll": Vector2(2000, 2000),
+		"save_path": ""
 	}
 	workspaces.append(ws)
 
@@ -237,9 +240,20 @@ func _switch_workspace(idx: int):
 		var old_ws = workspaces[current_workspace_idx]
 		old_ws.zoom = canvas_zoom
 		old_ws.scroll = canvas_scroll
+		old_ws.save_path = current_save_path
 		old_ws.undo_stack = undo_stack.duplicate()
 	
-	# 2. Load new state
+	# 2. Handle Empty State
+	if idx < 0 or workspaces.is_empty():
+		current_workspace_idx = -1
+		workspace_dock.visible = false
+		tool_options_bar.visible = false
+		print("[WORKSPACE] Entering Empty State")
+		return
+		
+	# 3. Load new state
+	workspace_dock.visible = true
+	tool_options_bar.visible = true
 	current_workspace_idx = idx
 	var ws = workspaces[idx]
 	
@@ -250,7 +264,7 @@ func _switch_workspace(idx: int):
 	canvas_zoom = ws.zoom
 	canvas_scroll = ws.scroll
 	
-	# 3. Update Visuals
+	# 4. Update Visuals
 	texture_rect.texture = canvas_texture
 	texture_rect.custom_minimum_size = ws.image.get_size()
 	_update_zoom()
@@ -291,8 +305,12 @@ func _connect_ui():
 	# Modal Connections
 	btn_create.pressed.connect(_on_create_tab_pressed)
 	btn_cancel.pressed.connect(_on_cancel_tab_pressed)
+	input_name.text_changed.connect(_on_new_file_name_changed)
 	tabs_bar.tab_changed.connect(_on_tab_changed)
 	tabs_bar.tab_close_pressed.connect(_on_tab_close_pressed)
+
+	save_dialog.file_selected.connect(_on_save_dialog_file_selected)
+	open_dialog.file_selected.connect(_on_open_dialog_file_selected)
 
 	# Brush/Eraser Options Connect
 	_setup_button_icon(brush_shape_round, "res://assets/ui/icons/brush_round.svg", 14)
@@ -396,18 +414,52 @@ func _build_biome_list():
 		_build_tile_sections_view()
 
 func _build_static_biome_view():
-	var grid = GridContainer.new()
-	grid.columns = 2
-	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid.add_theme_constant_override("h_separation", 8)
-	grid.add_theme_constant_override("v_separation", 8)
-	biome_list_container.add_child(grid)
+	var categories = ["polar", "temperate", "tropical", "arid", "special"]
+	var cat_names = {
+		"polar": "VÙNG LẠNH / CỰC",
+		"temperate": "VÙNG ÔN ĐỚI",
+		"tropical": "VÙNG NHIỆT ĐỚI",
+		"arid": "VÙNG KHÔ HẠN",
+		"special": "ĐẶC BIỆT & NƯỚC"
+	}
+	
+	var grouped = {}
+	for cat in categories: grouped[cat] = []
 	
 	for i in range(STATIC_BIOMES.size()):
 		var b = STATIC_BIOMES[i].duplicate()
 		b["index"] = i
-		var card = _build_tile_card(b, true) # color_mode = true
-		grid.add_child(card)
+		var c = b.get("climate", "temperate")
+		if grouped.has(c):
+			grouped[c].append(b)
+	
+	for cat in categories:
+		if grouped[cat].is_empty(): continue
+		
+		# Title label
+		var title_label = Label.new()
+		title_label.text = cat_names[cat]
+		title_label.add_theme_font_size_override("font_size", 10)
+		title_label.add_theme_color_override("font_color", Color(0.4, 0.4, 0.4))
+		
+		# Thêm margin phía trên cho tiêu đề trừ nhóm đầu tiên
+		if biome_list_container.get_child_count() > 0:
+			var spacer = Control.new()
+			spacer.custom_minimum_size = Vector2(0, 12)
+			biome_list_container.add_child(spacer)
+			
+		biome_list_container.add_child(title_label)
+		
+		var grid = GridContainer.new()
+		grid.columns = 2
+		grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_theme_constant_override("h_separation", 8)
+		grid.add_theme_constant_override("v_separation", 8)
+		biome_list_container.add_child(grid)
+		
+		for b in grouped[cat]:
+			var card = _build_tile_card(b, true) # color_mode = true
+			grid.add_child(card)
 	
 	_update_biome_ui()
 
@@ -700,8 +752,15 @@ func _on_canvas_gui_input(event):
 
 				_prepare_undo()
 				is_drawing = true
-				last_draw_pos = local_pos
-				_apply_tool(local_pos)
+				
+				if event.shift_pressed and last_click_pos.x >= 0:
+					last_draw_pos = last_click_pos
+					_interpolate_draw(local_pos)
+				else:
+					_apply_tool(local_pos)
+					last_draw_pos = local_pos
+				
+				last_click_pos = local_pos
 			else:
 				is_drawing = false
 				_finalize_rect_tool(local_pos)
@@ -802,14 +861,38 @@ func _input(event):
 func _unhandled_input(event):
 	# Global Shortcuts
 	if event is InputEventKey and event.pressed:
-		if event.ctrl_pressed and event.keycode == KEY_N:
-			show_new_file_modal()
-			get_viewport().set_input_as_handled()
-			return
-		if event.ctrl_pressed and event.keycode == KEY_D:
-			_clear_selection()
-			get_viewport().set_input_as_handled()
-			return
+		if event.ctrl_pressed:
+			match event.keycode:
+				KEY_N:
+					show_new_file_modal()
+					get_viewport().set_input_as_handled()
+					return
+				KEY_O:
+					import_image()
+					get_viewport().set_input_as_handled()
+					return
+				KEY_D:
+					_clear_selection()
+					get_viewport().set_input_as_handled()
+					return
+				KEY_S:
+					if event.shift_pressed:
+						save_dialog.current_file = workspaces[current_workspace_idx].name + ".entmap"
+						save_dialog.popup_centered()
+					else:
+						save_map()
+					get_viewport().set_input_as_handled()
+					return
+				KEY_Z:
+					undo()
+					get_viewport().set_input_as_handled()
+					return
+				KEY_0:
+					canvas_zoom = 1.0
+					_update_zoom()
+					_center_canvas()
+					get_viewport().set_input_as_handled()
+					return
 
 	# Mouse Wheel: Zoom or Brush Size
 	if event is InputEventMouseButton and event.pressed:
@@ -867,13 +950,6 @@ func _unhandled_input(event):
 			KEY_M: set_tool("rect")
 			KEY_W: set_tool("wand")
 			KEY_E: set_tool("eraser")
-			KEY_Z: if event.ctrl_pressed: undo()
-			KEY_S: if event.ctrl_pressed: export_image()
-			KEY_0: 
-				if event.ctrl_pressed:
-					canvas_zoom = 1.0
-					_update_zoom()
-					_center_canvas()
 
 	# Pan with Space bar
 	if event is InputEventKey and event.keycode == KEY_SPACE:
@@ -1199,8 +1275,98 @@ func undo():
 	_update_texture()
 
 func export_image():
-	var err = canvas_image.save_png(SAVE_PATH)
-	if err == OK: print("[PAINTER] Saved to ", SAVE_PATH)
+	save_map()
+
+func save_map():
+	if current_save_path.is_empty():
+		save_dialog.current_file = workspaces[current_workspace_idx].name + ".entmap"
+		save_dialog.popup_centered()
+	else:
+		_perform_save(current_save_path)
+
+func import_image():
+	open_dialog.popup_centered()
+
+func _on_save_dialog_file_selected(path: String):
+	current_save_path = path
+	var f_name = path.get_file().get_basename()
+	workspaces[current_workspace_idx].name = f_name
+	tabs_bar.set_tab_title(current_workspace_idx, f_name)
+	_perform_save(path)
+
+func _on_open_dialog_file_selected(path: String):
+	_perform_load(path)
+
+func _perform_save(path: String):
+	# 1. Prepare Image Data as Base64
+	var buffer = canvas_image.save_png_to_buffer()
+	var b64_data = Marshalls.raw_to_base64(buffer)
+	
+	# 2. Package everything into Metadata
+	var project_data = {
+		"version": "1.0",
+		"name": workspaces[current_workspace_idx].name,
+		"size": {"w": canvas_image.get_width(), "h": canvas_image.get_height()},
+		"biomes_snapshot": STATIC_BIOMES,
+		"pixel_data": b64_data,
+		"created_at": Time.get_datetime_string_from_system()
+	}
+	
+	# 3. Save to Single File (.entmap)
+	var f = FileAccess.open(path, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(project_data, "\t"))
+		f.close()
+		print("[PAINTER] Project saved to: ", path)
+	else:
+		print("[PAINTER] Failed to open file for writing: ", path)
+
+func _perform_load(path: String):
+	var f = FileAccess.open(path, FileAccess.READ)
+	if not f:
+		print("[PAINTER] Failed to open file for reading: ", path)
+		return
+		
+	var json_str = f.get_as_text()
+	f.close()
+	
+	var json = JSON.new()
+	var parse_err = json.parse(json_str)
+	if parse_err != OK:
+		print("[PAINTER] JSON Parse Error: ", json.get_error_message())
+		return
+		
+	var data = json.data
+	if not data.has("pixel_data"):
+		print("[PAINTER] Invalid project file: missing pixel_data")
+		return
+		
+	# 1. Decode Image
+	var buffer = Marshalls.base64_to_raw(data.pixel_data)
+	var img = Image.new()
+	var err = img.load_png_from_buffer(buffer)
+	if err != OK:
+		print("[PAINTER] Error decoding PNG from project: ", err)
+		return
+		
+	# 2. Setup Workspace (Always create NEW for "Open")
+	var ws_name = data.get("name", path.get_file().get_basename())
+	var img_size = img.get_size()
+	
+	_create_workspace(ws_name, img_size)
+	var ws_idx = workspaces.size() - 1
+	var ws = workspaces[ws_idx]
+	
+	ws.image = img
+	ws.texture = ImageTexture.create_from_image(img)
+	ws.save_path = path
+
+	# 3. Update UI
+	tabs_bar.add_tab(ws_name)
+	tabs_bar.current_tab = ws_idx
+	# Signal 'tab_changed' will trigger _switch_workspace(ws_idx)
+	
+	print("[PAINTER] Project loaded into new tab: ", ws_name)
 
 # ═══════════════════════════════════════════════════════════════
 # INSPECTOR LOGIC
@@ -1287,13 +1453,30 @@ func _update_inspector_overlay():
 
 
 func show_new_file_modal():
+	input_name.text = ""
+	_validate_new_file_name("")
 	modal_new_file.show()
 	input_name.grab_focus()
-	input_name.select_all()
+
+func _on_new_file_name_changed(new_text: String):
+	_validate_new_file_name(new_text)
+
+func _validate_new_file_name(text: String):
+	var is_valid = true
+	var current_text = text.strip_edges()
+	
+	if current_text.length() == 0:
+		is_valid = false
+	
+	for ws in workspaces:
+		if ws.name == current_text:
+			is_valid = false
+			break
+			
+	btn_create.disabled = !is_valid
 
 func _on_create_tab_pressed():
 	var f_name = input_name.text.strip_edges()
-	if f_name == "": f_name = "Untitled"
 	
 	var w = input_w.text.to_int()
 	var h = input_h.text.to_int()
@@ -1319,14 +1502,13 @@ func _on_tab_changed(idx: int):
 		_switch_workspace(idx)
 
 func _on_tab_close_pressed(idx: int):
-	if workspaces.size() <= 1:
-		# Không cho đóng tab cuối cùng, hoặc hiện modal chọn mới
-		show_new_file_modal()
-		return
-		
 	workspaces.remove_at(idx)
 	tabs_bar.remove_tab(idx)
 	
+	if workspaces.is_empty():
+		_switch_workspace(-1)
+		return
+		
 	# Nếu đóng tab đang active, chuyển sang tab lân cận
 	if current_workspace_idx == idx:
 		var new_idx = clamp(idx, 0, workspaces.size() - 1)

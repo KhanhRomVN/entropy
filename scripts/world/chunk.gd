@@ -8,21 +8,29 @@ var chunk_pos: Vector2i
 var tileset: TileSet
 var height_layers: Array[TileMapLayer] = []
 var prop_layer: TileMapLayer # Lớp chứa cây cối, đá, v.v.
+var fluid_layer: TileMapLayer # Lớp nước/chất lỏng với shader động
 
 func setup(_pos: Vector2i, _tileset: TileSet):
 	chunk_pos = _pos
 	tileset = _tileset
 	name = "Chunk_%d_%d" % [chunk_pos.x, chunk_pos.y]
 	
-	# Layer 0: Terrain (Mặt đất) - Luôn nằm dưới cùng
+	# Layer 0: Ground (Đất & Nước) - TẤT CẢ TRONG MỘT LỚP ĐỂ Y-SORT ĐÚNG
 	var terrain = TileMapLayer.new()
 	terrain.tile_set = tileset
-	terrain.y_sort_enabled = true # ĐÃ BẬT: Cần thiết để các block Isometric cao che phủ nhau đúng cách
-	terrain.z_index = -1 # Đảm bảo luôn nằm dưới Player và Buildings
+	terrain.y_sort_enabled = true
+	terrain.z_index = -1
+	
+	# Temporarily disabled shader as per user request to test visual accuracy
+	# var mat = ShaderMaterial.new()
+	# mat.shader = load("res://assets/tiles/fluids/water_salt_block/water_salt_block.gdshader")
+	# terrain.material = mat
+	
 	add_child(terrain)
 	height_layers.append(terrain)
+	fluid_layer = terrain # Map fluid_layer to the same node for compatibility
 	
-	# Layer 1: Props (Cây cối) - Dùng Y-Sort
+	# Layer 1: Props (Cây cối)
 	prop_layer = TileMapLayer.new()
 	prop_layer.tile_set = tileset
 	prop_layer.y_sort_enabled = true

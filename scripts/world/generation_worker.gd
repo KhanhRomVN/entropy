@@ -55,6 +55,7 @@ func trigger_task(cpos: Vector2i):
 	pending_tasks[cpos] = true
 	mutex.unlock()
 
+	print("[CHUNK-TRACE] Trigger Task: %s | MapSize: %d" % [cpos, map_size])
 	WorkerThreadPool.add_task(_thread_generate_noise.bind(cpos))
 
 func get_cached_data(cpos: Vector2i):
@@ -84,6 +85,7 @@ func _thread_generate_noise(cpos: Vector2i):
 		"deep_sea": 0, "beach": 1, "plains": 2, "forest": 3,
 		"jungle": 4, "desert": 5, "tundra": 6, "taiga": 7,
 		"savannah": 8, "volcano": 9, "bamboo": 10, "salt_desert": 11,
+		"coal": 12,
 	}
 	const RESOURCE_INDEX = {
 		"": 0, "gold": 1, "iron": 2, "copper": 3, "silver": 4, "tin": 5
@@ -113,7 +115,10 @@ func _thread_generate_noise(cpos: Vector2i):
 				biome_data[idx] = 0
 				continue
 				
-			var land_val = shape_engine.get_land_value(gpos)
+			var land_base = shape_engine.get_land_value(gpos)
+			var land_noise = detail_noise.get_noise_2d(gx * 0.1, gy * 0.1) * 0.05
+			var land_val = land_base + land_noise
+			
 			land_data[idx] = land_val
 
 			var biome_result = shape_engine.get_biome(gpos, land_val)
@@ -143,3 +148,4 @@ func _thread_generate_noise(cpos: Vector2i):
 	}
 	pending_tasks.erase(cpos)
 	mutex.unlock()
+	print("[CHUNK-TRACE] Completed: %s" % cpos)

@@ -204,13 +204,17 @@ func toggle_world_map(active: bool):
 	if active:
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 		var cp = orchestrator.camera.global_position if orchestrator.camera else Vector2.ZERO
-		var tp = orchestrator.temp_layer.local_to_map(orchestrator.temp_layer.to_local(cp))
+		
+		# BYPASS TileMap transformation: map world pixels back to raw Cartesian indices 
+		# This ensures view_center exactly matches the generation grid
 		var map_root = world_map_instance.get_node("Root")
-		map_root.view_center = Vector2(tp.x, tp.y)
+		var target_idx = orchestrator.local_to_cartesian_idx(cp)
+		
+		map_root.view_center = target_idx
 		map_root.view_zoom = 1.0
 		map_root.player_node = orchestrator.player if orchestrator.player else orchestrator.camera
 		map_root.orchestrator = orchestrator
-		map_root.setup_blueprint(orchestrator.shape_engine, orchestrator.active_continent_type, orchestrator.detail_noise, orchestrator.forest_noise, orchestrator.river_noise, orchestrator.warp_noise, orchestrator.map_size, orchestrator.world_seed)
+		map_root.setup_blueprint(orchestrator.shape_engine, orchestrator.active_continent_type, orchestrator.detail_noise, orchestrator.forest_noise, orchestrator.river_noise, orchestrator.warp_noise, orchestrator.map_size / 2, orchestrator.world_seed, orchestrator.override_biome_map)
 
 func update_debug_labels(fps: float, t_noise: int, t_tiles: int, t_objects: int, t_physics: int, statics: int, lighting: int, queue_gen: int, queue_rem: int):
 	if ui_fps:
