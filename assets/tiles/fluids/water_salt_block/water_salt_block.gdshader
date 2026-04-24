@@ -9,31 +9,24 @@ void vertex() {
 }
 
 void fragment() {
-    // Water detection via alternative tile alpha (0.5). Land is 1.0.
-    if (COLOR.a < 0.9) {
-        vec2 p;
-        p.x = (UV.x - 0.5) * 2.0; 
-        p.y = (UV.y - (2373.0 / 5000.0)) * (5000.0 / 250.0);
-        
-        float wave = sin(TIME * wave_speed + UV.x * 10.0) * wave_amplitude;
-        p.y += wave;
-        
-        float dx = abs(p.x);
-        float dy = p.y;
-        bool inside = false;
-        
-        if (dx * 0.5 + abs(dy + 0.25) < 0.5) inside = true;
-        if (dx < 0.5 && dy > -0.25 && dy < 0.75 - dx * 0.5) inside = true;
+    // No longer needs alpha branching because it's on a dedicated fluid layer
+    vec2 p;
+    p.x = (UV.x - 0.5) * 2.0; 
+    p.y = (UV.y - (2373.0 / 5000.0)) * (5000.0 / 250.0);
+    
+    float wave = sin(TIME * wave_speed + UV.x * 10.0) * wave_amplitude;
+    p.y += wave;
+    
+    float dx = abs(p.x);
+    float dy = p.y;
+    bool inside = false;
+    
+    if (dx * 0.5 + abs(dy + 0.25) < 0.5) inside = true;
+    if (dx < 0.5 && dy > -0.25 && dy < 0.75 - dx * 0.5) inside = true;
 
-        if (inside) {
-            COLOR = water_color;
-        } else {
-            discard;
-        }
+    if (inside) {
+        COLOR = water_color;
     } else {
-        // Normal land tile
-        vec4 tex_color = texture(TEXTURE, UV);
-        if (tex_color.a < 0.1) discard; // Handle transparency in atlas
-        COLOR = tex_color * COLOR;
+        discard;
     }
 }

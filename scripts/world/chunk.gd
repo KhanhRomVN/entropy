@@ -15,22 +15,23 @@ func setup(_pos: Vector2i, _tileset: TileSet):
 	tileset = _tileset
 	name = "Chunk_%d_%d" % [chunk_pos.x, chunk_pos.y]
 	
-	# Layer 0: Ground (Đất & Nước) - TẤT CẢ TRONG MỘT LỚP ĐỂ Y-SORT ĐÚNG
+	# Layer 0: Ground (Đất liền)
 	var terrain = TileMapLayer.new()
 	terrain.tile_set = tileset
 	terrain.y_sort_enabled = true
 	terrain.z_index = -1
-	
-	# Temporarily disabled shader as per user request to test visual accuracy
-	# var mat = ShaderMaterial.new()
-	# mat.shader = load("res://assets/tiles/fluids/water_salt_block/water_salt_block.gdshader")
-	# terrain.material = mat
-	
 	add_child(terrain)
 	height_layers.append(terrain)
-	fluid_layer = terrain # Map fluid_layer to the same node for compatibility
 	
-	# Layer 1: Props (Cây cối)
+	# Layer 1: Fluids (Nước/Chất lỏng với shader riêng)
+	fluid_layer = TileMapLayer.new()
+	fluid_layer.tile_set = tileset
+	fluid_layer.y_sort_enabled = true
+	fluid_layer.z_index = -1 # Draw on same vertical level as ground but y-sorted
+	
+	add_child(fluid_layer)
+	
+	# Layer 2: Props (Cây cối)
 	prop_layer = TileMapLayer.new()
 	prop_layer.tile_set = tileset
 	prop_layer.y_sort_enabled = true

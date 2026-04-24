@@ -22,19 +22,23 @@ void fragment() {
         blur += texture(screen_texture, SCREEN_UV + vec2(size, size));
         blur /= 9.0;
         COLOR = blur * vec4(0.5, 0.5, 0.5, 1.0); // Dim non-selected
-    } else {
-        COLOR = screen;
         
-        // Simple Edge detection for white outline
+        // Edge detection for outward outline
         float edge = 0.0;
-        float d = 0.005;
+        float d = 0.0015; // Thinner offset
         edge += texture(mask, UV + vec2(d, 0)).r;
         edge += texture(mask, UV + vec2(-d, 0)).r;
         edge += texture(mask, UV + vec2(0, d)).r;
         edge += texture(mask, UV + vec2(0, -d)).r;
         
-        if (edge < 4.0) {
-            COLOR = mix(COLOR, vec4(1.0, 1.0, 1.0, 1.0), 0.8);
+        if (edge > 0.01) {
+            // Dashed effect
+            float dash = step(0.5, fract(TIME * 3.0 + (UV.x + UV.y) * 150.0));
+            if (dash > 0.5) {
+                COLOR = vec4(1.0, 1.0, 1.0, 1.0);
+            }
         }
+    } else {
+        COLOR = screen;
     }
 }

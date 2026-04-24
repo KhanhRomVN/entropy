@@ -342,14 +342,15 @@ func _process_generation_queue(budget: int) -> int:
 			var forest = cached["forest"][_current_tile_idx]
 			var b_name = BIOME_NAMES_LIST[biome_idx]
 			var sid = _biome_to_tile_id(b_name, land, river, scatter)
-			var alt = 1 if FLUID_TILE_IDS.has(sid) else 0
-			
-			var cam_tp = Vector2.ZERO
-			if camera:
-				cam_tp = local_to_cartesian_idx(camera.global_position)
+			var is_fluid = FLUID_TILE_IDS.has(sid)
+			var target_layer = fluid_l if is_fluid else layer
+			var other_layer = layer if is_fluid else fluid_l
+			var alt = 1 if is_fluid else 0
 
-			# Purged [GEN-TRACE] noise
-			layer.set_cell(gpos, sid, Vector2i(0, 0), alt)
+			
+			# Ensure no overlap
+			other_layer.set_cell(gpos, -1)
+			target_layer.set_cell(gpos, sid, Vector2i(0, 0), alt)
 			
 			# Props
 			var prop_id = _biome_to_prop(b_name, forest, scatter)

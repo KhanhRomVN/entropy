@@ -117,6 +117,28 @@ var has_selection: bool = false
 @onready var eraser_shape_square = $AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin/EraserOptions/ShapeGroup/BtnShapeSquare
 @onready var eraser_size_input = $AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin/EraserOptions/SizeInput
 
+@onready var reference_options = $AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin/ReferenceOptions
+@onready var btn_load_ref = $AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/ToolOptionsBar/Margin/ReferenceOptions/BtnLoad
+@onready var reference_opacity_input = %OpacityInput
+@onready var reference_overlay = $AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/WorkspaceContainer/WorkspaceDock/WorkspacePadding/CanvasContent/ReferenceOverlay
+@onready var reference_transform = %ReferenceTransform
+@onready var reference_dialog = $ReferenceDialog
+
+var is_transforming_ref = false
+var dragging_handle = ""
+var is_dragging_ref = false
+var drag_start_pos = Vector2.ZERO
+var ref_start_rect = Rect2()
+var ref_aspect_ratio = 1.0
+var current_ref_path = ""
+
+@onready var btn_brush = $AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools/Brush
+@onready var btn_rect = $AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools/Rect
+@onready var btn_wand = $AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools/Wand
+@onready var btn_eraser = $AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools/Eraser
+@onready var btn_inspector = $AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools/Inspector
+@onready var btn_reference = $AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools/Reference
+
 @onready var input_name = $OverlayLayer/NewFileModal/Center/Panel/Margin/VBox/Grid/InputName
 @onready var input_w = $OverlayLayer/NewFileModal/Center/Panel/Margin/VBox/Grid/HBox/InputW
 @onready var input_h = $OverlayLayer/NewFileModal/Center/Panel/Margin/VBox/Grid/HBox/InputH
@@ -198,6 +220,17 @@ func _ready():
 	_setup_button_icon(btn_terrain, "res://assets/ui/icons/terrain_tile.svg", 22)
 	
 	_setup_selection_ui()
+	
+	# Register Input Actions via Script
+	if not InputMap.has_action("ui_ref_transform"):
+		InputMap.add_action("ui_ref_transform")
+		var ev = InputEventKey.new()
+		ev.ctrl_pressed = true
+		ev.keycode = KEY_T
+		InputMap.action_add_event("ui_ref_transform", ev)
+
+	# Automatically load world1.entmap
+	_perform_load("res://assets/world/world1.entmap")
 
 func _setup_initial_workspace():
 	tabs_bar.tab_count = 0
@@ -230,7 +263,11 @@ func _create_workspace(ws_name: String, size: Vector2i):
 		"selection_mask": mask,
 		"zoom": 1.0,
 		"scroll": Vector2(2000, 2000),
-		"save_path": ""
+		"save_path": "",
+		"ref_path": "",
+		"ref_pos": Vector2.ZERO,
+		"ref_size": Vector2(512, 512),
+		"ref_opacity": 0.5
 	}
 	workspaces.append(ws)
 
@@ -242,6 +279,10 @@ func _switch_workspace(idx: int):
 		old_ws.scroll = canvas_scroll
 		old_ws.save_path = current_save_path
 		old_ws.undo_stack = undo_stack.duplicate()
+		# Store Logical (unzoomed) coordinates
+		old_ws.ref_pos = reference_overlay.position / canvas_zoom
+		old_ws.ref_size = reference_overlay.size / canvas_zoom
+		old_ws.ref_opacity = reference_overlay.modulate.a
 	
 	# 2. Handle Empty State
 	if idx < 0 or workspaces.is_empty():
@@ -263,6 +304,7 @@ func _switch_workspace(idx: int):
 	selection_mask = ws.selection_mask
 	canvas_zoom = ws.zoom
 	canvas_scroll = ws.scroll
+	current_save_path = ws.save_path
 	
 	# 4. Update Visuals
 	texture_rect.texture = canvas_texture
@@ -311,6 +353,23 @@ func _connect_ui():
 
 	save_dialog.file_selected.connect(_on_save_dialog_file_selected)
 	open_dialog.file_selected.connect(_on_open_dialog_file_selected)
+	reference_dialog.file_selected.connect(_on_ref_dialog_file_selected)
+	
+	btn_brush.pressed.connect(func(): set_tool("brush"))
+	btn_rect.pressed.connect(func(): set_tool("rect"))
+	btn_wand.pressed.connect(func(): set_tool("wand"))
+	btn_eraser.pressed.connect(func(): set_tool("eraser"))
+	btn_inspector.pressed.connect(func(): set_tool("inspector"))
+	btn_reference.pressed.connect(func(): set_tool("reference"))
+	
+	btn_load_ref.pressed.connect(_on_load_reference_pressed)
+	reference_opacity_input.text_submitted.connect(_on_opacity_input_submitted)
+	reference_opacity_input.focus_exited.connect(func(): _on_opacity_input_submitted(reference_opacity_input.text))
+
+	# Reference Transform Connect
+	for handle in reference_transform.get_children():
+		handle.gui_input.connect(_on_handle_gui_input.bind(handle.name))
+	reference_transform.gui_input.connect(_on_transform_gui_input)
 
 	# Brush/Eraser Options Connect
 	_setup_button_icon(brush_shape_round, "res://assets/ui/icons/brush_round.svg", 14)
@@ -816,6 +875,9 @@ func _update_zoom():
 	
 	_update_custom_scrollbars()
 	_update_brush_cursor_size()
+	
+	if current_workspace_idx >= 0:
+		_apply_workspace_reference(workspaces[current_workspace_idx])
 
 func _update_custom_scrollbars():
 	pass # Minimalist UI: No scrollbars
@@ -840,28 +902,27 @@ func _perform_wheel_zoom(factor: float):
 	
 	workspace_padding.position = -canvas_scroll
 
-func _input(event):
-	# Panning Logic (Global override - bypasses node blocking)
-	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_MIDDLE or event.button_index == MOUSE_BUTTON_RIGHT:
-			if event.pressed:
-				is_panning = true
-				pan_start_pos = event.position
-				canvas_start_pos = canvas_scroll
-				get_viewport().set_input_as_handled() 
-			else:
-				is_panning = false
-	elif event is InputEventMouseMotion:
-		if is_panning:
-			var diff = event.position - pan_start_pos
-			canvas_scroll = canvas_start_pos - diff
-			workspace_padding.position = -canvas_scroll
-			get_viewport().set_input_as_handled()
+func _is_mouse_over_workspace() -> bool:
+	var mouse_pos = get_global_mouse_position()
+	# Check if mouse is within the workspace dock AND not over modal
+	if modal_new_file.visible: return false
+	return workspace_dock.get_global_rect().has_point(mouse_pos)
 
-func _unhandled_input(event):
-	# Global Shortcuts
+func _input(event):
+	# Global Shortcuts (Highest Priority - bypasses UI focus)
 	if event is InputEventKey and event.pressed:
-		if event.ctrl_pressed:
+		var ctrl = event.ctrl_pressed
+		var shift = event.shift_pressed
+		
+		# Ctrl + T: Transform Toggle
+		if ctrl and not shift and event.keycode == KEY_T:
+			if current_tool == "reference":
+				_toggle_reference_transform()
+				get_viewport().set_input_as_handled()
+				return
+			
+		# Ctrl + Shortcuts
+		if ctrl:
 			match event.keycode:
 				KEY_N:
 					show_new_file_modal()
@@ -876,7 +937,7 @@ func _unhandled_input(event):
 					get_viewport().set_input_as_handled()
 					return
 				KEY_S:
-					if event.shift_pressed:
+					if shift:
 						save_dialog.current_file = workspaces[current_workspace_idx].name + ".entmap"
 						save_dialog.popup_centered()
 					else:
@@ -894,9 +955,35 @@ func _unhandled_input(event):
 					get_viewport().set_input_as_handled()
 					return
 
+	# Panning Logic (Global override - bypasses node blocking)
+	if event is InputEventMouseButton:
+		# Auto-release focus when clicking on workspace
+		if event.pressed and _is_mouse_over_workspace():
+			var focus_node = get_viewport().gui_get_focus_owner()
+			if focus_node is LineEdit:
+				focus_node.release_focus()
+
+		if event.button_index == MOUSE_BUTTON_MIDDLE or event.button_index == MOUSE_BUTTON_RIGHT:
+			if event.pressed:
+				if not _is_mouse_over_workspace(): return
+				is_panning = true
+				pan_start_pos = event.position
+				canvas_start_pos = canvas_scroll
+				get_viewport().set_input_as_handled() 
+			else:
+				is_panning = false
+	elif event is InputEventMouseMotion:
+		if is_panning:
+			var diff = event.position - pan_start_pos
+			canvas_scroll = canvas_start_pos - diff
+			workspace_padding.position = -canvas_scroll
+			get_viewport().set_input_as_handled()
+
+func _unhandled_input(event):
 	# Mouse Wheel: Zoom or Brush Size
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			if not _is_mouse_over_workspace(): return
 			get_viewport().set_input_as_handled()
 			if event.ctrl_pressed:
 				_on_brush_size_changed(brush_size + 1)
@@ -904,6 +991,7 @@ func _unhandled_input(event):
 				_perform_wheel_zoom(1.2)
 			return
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			if not _is_mouse_over_workspace(): return
 			get_viewport().set_input_as_handled()
 			if event.ctrl_pressed:
 				_on_brush_size_changed(brush_size - 1)
@@ -915,6 +1003,7 @@ func _unhandled_input(event):
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT and Input.is_key_pressed(KEY_Z):
 			if event.pressed:
+				if not _is_mouse_over_workspace(): return
 				is_zooming = true
 				zoom_start_pos = event.position
 				zoom_start_val = canvas_zoom
@@ -950,6 +1039,8 @@ func _unhandled_input(event):
 			KEY_M: set_tool("rect")
 			KEY_W: set_tool("wand")
 			KEY_E: set_tool("eraser")
+			KEY_I: set_tool("inspector")
+			KEY_R: set_tool("reference")
 
 	# Pan with Space bar
 	if event is InputEventKey and event.keycode == KEY_SPACE:
@@ -1135,21 +1226,29 @@ func _update_selection_visual():
 shader_type canvas_item;
 void fragment() {
 	float m = texture(TEXTURE, UV).r;
-	if (m < 0.1) discard;
 	
-	// Check neighbors for edge
-	vec2 ps = SCREEN_PIXEL_SIZE;
+	// Edge detection for outward outline
+	vec2 ps = 1.0 / vec2(textureSize(TEXTURE, 0));
 	float edge = 0.0;
-	if (texture(TEXTURE, UV + vec2(ps.x, 0)).r < 0.1 || 
-		texture(TEXTURE, UV + vec2(-ps.x, 0)).r < 0.1 ||
-		texture(TEXTURE, UV + vec2(0, ps.y)).r < 0.1 ||
-		texture(TEXTURE, UV + vec2(0, -ps.y)).r < 0.1) {
-		edge = 1.0;
-	}
 	
-	if (edge > 0.5) {
-		float pulse = step(0.5, fract(TIME * 2.0 + (UV.x + UV.y) * 100.0));
-		COLOR = mix(vec4(1), vec4(0, 0, 0, 1), pulse);
+	if (m < 0.1) {
+		if (texture(TEXTURE, UV + vec2(ps.x, 0)).r > 0.9 || 
+			texture(TEXTURE, UV + vec2(-ps.x, 0)).r > 0.9 ||
+			texture(TEXTURE, UV + vec2(0, ps.y)).r > 0.9 ||
+			texture(TEXTURE, UV + vec2(0, -ps.y)).r > 0.9) {
+			edge = 1.0;
+		}
+		
+		if (edge > 0.5) {
+			float dash = step(0.5, fract(TIME * 3.0 + (UV.x + UV.y) * 150.0));
+			if (dash > 0.5) {
+				COLOR = vec4(1, 1, 1, 1);
+			} else {
+				discard;
+			}
+		} else {
+			discard;
+		}
 	} else {
 		COLOR = vec4(0.2, 0.5, 1.0, 0.3);
 	}
@@ -1203,19 +1302,42 @@ func _update_selection_preview(pos: Vector2):
 # UI UPDATES
 # ═══════════════════════════════════════════════════════════════
 
+func _update_tool_ui():
+	for child in tools_container.get_children():
+		if child is Button:
+			var is_active = (child.name.to_lower() == current_tool.to_lower())
+			if is_active:
+				var active_style = child.get_theme_stylebox("pressed")
+				child.add_theme_stylebox_override("normal", active_style)
+				child.add_theme_color_override("icon_normal_color", Color("#378ADD"))
+			else:
+				child.add_theme_stylebox_override("normal", style_normal)
+				child.add_theme_color_override("icon_normal_color", Color.WHITE)
+				
+	st_tool.text = "Tool: " + current_tool.capitalize()
+
 func set_tool(tool_name: String):
 	current_tool = tool_name
+	
+	# Visibility of overlays
 	if tool_name != "inspector":
 		inspector_overlay.visible = false
+	
 	_update_tool_ui()
 	_update_brush_cursor_position()
 	_update_tool_options_visibility()
 
 func _update_tool_options_visibility():
-	tool_options_bar.visible = true
-	selection_options.visible = (current_tool == "wand" or current_tool == "rect")
 	brush_options.visible = (current_tool == "brush")
+	selection_options.visible = (current_tool == "rect" or current_tool == "wand")
 	eraser_options.visible = (current_tool == "eraser")
+	reference_options.visible = (current_tool == "reference")
+	
+	# Only show ToolOptionsBar if it has content
+	tool_options_bar.visible = (brush_options.visible or 
+								selection_options.visible or 
+								eraser_options.visible or 
+								reference_options.visible)
 
 func _set_selection_mode(mode: int):
 	current_selection_mode = mode
@@ -1237,19 +1359,144 @@ func _on_brush_size_changed(value: float):
 	if brush_size_input: brush_size_input.text = str(brush_size)
 	if eraser_size_input: eraser_size_input.text = str(brush_size)
 
-func _update_tool_ui():
-	for child in tools_container.get_children():
-		if child is Button:
-			var is_active = (child.name.to_lower() == current_tool.to_lower())
-			if is_active:
-				var active_style = child.get_theme_stylebox("pressed")
-				child.add_theme_stylebox_override("normal", active_style)
-				child.add_theme_color_override("icon_normal_color", Color("#378ADD"))
+func _on_load_reference_pressed():
+	reference_dialog.popup_centered()
+
+func _on_ref_dialog_file_selected(path: String):
+	var img = Image.load_from_file(path)
+	if img:
+		reference_overlay.texture = ImageTexture.create_from_image(img)
+		reference_overlay.show()
+		current_ref_path = path # Correct tracking
+		if current_workspace_idx >= 0:
+			var ws = workspaces[current_workspace_idx]
+			ws.ref_path = path
+			ws.ref_pos = reference_overlay.position / canvas_zoom
+			ws.ref_size = reference_overlay.size / canvas_zoom
+		print("[REFERENCE] Loaded image: ", path)
+
+func _on_opacity_input_submitted(new_text: String):
+	var value = new_text.to_float()
+	if value > 100.0: value = 100.0
+	if value < 0.0: value = 0.0
+	
+	# If input is like 0.5, treat as 50%
+	if value <= 1.0 and ("." in new_text):
+		value *= 100.0
+		
+	reference_overlay.modulate.a = value / 100.0
+	reference_opacity_input.text = str(int(value))
+	if current_workspace_idx >= 0:
+		workspaces[current_workspace_idx].ref_opacity = reference_overlay.modulate.a
+	
+	reference_opacity_input.release_focus()
+
+func _toggle_reference_transform():
+	if not reference_overlay.texture: return
+	
+	is_transforming_ref = !is_transforming_ref
+	reference_transform.visible = is_transforming_ref
+	reference_overlay.mouse_filter = Control.MOUSE_FILTER_STOP if is_transforming_ref else Control.MOUSE_FILTER_IGNORE
+	
+	if is_transforming_ref:
+		ref_aspect_ratio = reference_overlay.texture.get_size().x / reference_overlay.texture.get_size().y
+		# Improve handle visibility via StyleBox
+		var sb = StyleBoxFlat.new()
+		sb.bg_color = Color("#3498db") # Bright Blue
+		sb.set_border_width_all(2)
+		sb.border_color = Color.WHITE
+		sb.set_corner_radius_all(2)
+		
+		for handle in reference_transform.get_children():
+			if handle is Control:
+				handle.add_theme_stylebox_override("panel", sb)
+				handle.custom_minimum_size = Vector2(12, 12)
+				# Re-center offsets for 12x12
+				handle.offset_left = -6
+				handle.offset_top = -6
+				handle.offset_right = 6
+				handle.offset_bottom = 6
+		print("[REFERENCE] Transform mode ENABLED")
+	else:
+		print("[REFERENCE] Transform mode DISABLED")
+
+func _on_handle_gui_input(event: InputEvent, handle_name: String):
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				dragging_handle = handle_name
+				drag_start_pos = get_global_mouse_position()
+				ref_start_rect = Rect2(reference_overlay.position, reference_overlay.size)
 			else:
-				child.add_theme_stylebox_override("normal", style_normal)
-				child.add_theme_color_override("icon_normal_color", Color.WHITE)
+				dragging_handle = ""
 				
-	st_tool.text = "Tool: " + current_tool.capitalize()
+	if event is InputEventMouseMotion and dragging_handle != "":
+		_handle_resize(handle_name)
+
+func _on_transform_gui_input(event: InputEvent):
+	if dragging_handle != "": return # Let handle logic rule
+	
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				is_dragging_ref = true
+				drag_start_pos = get_global_mouse_position()
+				ref_start_rect = Rect2(reference_overlay.position, reference_overlay.size)
+			else:
+				is_dragging_ref = false
+				
+	if event is InputEventMouseMotion and is_dragging_ref:
+			# Update POSITION (Move logic)
+			var delta = event.relative
+			reference_overlay.position += delta
+			# Store adjusted logical pos back to workspace immediately for zoom consistency
+			if current_workspace_idx >= 0:
+				workspaces[current_workspace_idx].ref_pos = reference_overlay.position / canvas_zoom
+
+func _handle_resize(handle_name: String):
+	var mouse_pos = get_global_mouse_position()
+	var delta = mouse_pos - drag_start_pos
+	var new_rect = ref_start_rect
+	
+	var shift = Input.is_key_pressed(KEY_SHIFT)
+	
+	# Handles: TL, TC, TR, ML, MR, BL, BC, BR
+	if "L" in handle_name:
+		new_rect.position.x += delta.x
+		new_rect.size.x -= delta.x
+	if "R" in handle_name:
+		new_rect.size.x += delta.x
+	if "T" in handle_name:
+		new_rect.position.y += delta.y
+		new_rect.size.y -= delta.y
+	if "B" in handle_name:
+		new_rect.size.y += delta.y
+
+	# Min size
+	if new_rect.size.x < 10: 
+		new_rect.size.x = 10
+		new_rect.position.x = ref_start_rect.end.x - 10 if "L" in handle_name else ref_start_rect.position.x
+	if new_rect.size.y < 10: 
+		new_rect.size.y = 10
+		new_rect.position.y = ref_start_rect.end.y - 10 if "T" in handle_name else ref_start_rect.position.y
+
+	if shift:
+		# Maintain aspect ratio
+		if handle_name in ["HandleTL", "HandleTR", "HandleBL", "HandleBR"]:
+			var current_ratio = new_rect.size.x / new_rect.size.y
+			if current_ratio > ref_aspect_ratio:
+				new_rect.size.x = new_rect.size.y * ref_aspect_ratio
+				if "L" in handle_name: new_rect.position.x = ref_start_rect.end.x - new_rect.size.x
+			else:
+				new_rect.size.y = new_rect.size.x / ref_aspect_ratio
+				if "T" in handle_name: new_rect.position.y = ref_start_rect.end.y - new_rect.size.y
+
+	reference_overlay.position = new_rect.position
+	reference_overlay.size = new_rect.size
+	
+	if current_workspace_idx >= 0:
+		workspaces[current_workspace_idx].ref_pos = reference_overlay.position / canvas_zoom
+		workspaces[current_workspace_idx].ref_size = reference_overlay.size / canvas_zoom
 
 func _update_biome_ui():
 	var all_items = []
@@ -1309,6 +1556,12 @@ func _perform_save(path: String):
 		"size": {"w": canvas_image.get_width(), "h": canvas_image.get_height()},
 		"biomes_snapshot": STATIC_BIOMES,
 		"pixel_data": b64_data,
+		"reference": {
+			"path": workspaces[current_workspace_idx].ref_path,
+			"pos": {"x": workspaces[current_workspace_idx].ref_pos.x, "y": workspaces[current_workspace_idx].ref_pos.y},
+			"size": {"x": workspaces[current_workspace_idx].ref_size.x, "y": workspaces[current_workspace_idx].ref_size.y},
+			"opacity": workspaces[current_workspace_idx].ref_opacity
+		},
 		"created_at": Time.get_datetime_string_from_system()
 	}
 	
@@ -1360,6 +1613,16 @@ func _perform_load(path: String):
 	ws.image = img
 	ws.texture = ImageTexture.create_from_image(img)
 	ws.save_path = path
+	current_save_path = path
+	
+	if data.has("reference"):
+		var ref = data.reference
+		ws.ref_path = ref.get("path", "")
+		if ref.has("pos"): ws.ref_pos = Vector2(ref.pos.x, ref.pos.y)
+		if ref.has("size"): ws.ref_size = Vector2(ref.size.x, ref.size.y)
+		ws.ref_opacity = ref.get("opacity", 0.5)
+		
+	_apply_workspace_reference(ws)
 
 	# 3. Update UI
 	tabs_bar.add_tab(ws_name)
@@ -1367,6 +1630,29 @@ func _perform_load(path: String):
 	# Signal 'tab_changed' will trigger _switch_workspace(ws_idx)
 	
 	print("[PAINTER] Project loaded into new tab: ", ws_name)
+
+func _apply_workspace_reference(ws: Dictionary):
+	if ws.ref_path != "":
+		# Only load if image is different
+		if reference_overlay.texture == null or current_ref_path != ws.ref_path:
+			var img = Image.load_from_file(ws.ref_path)
+			if img:
+				var tex = ImageTexture.create_from_image(img)
+				reference_overlay.texture = tex
+				current_ref_path = ws.ref_path 
+		
+		# Apply transform WITH ZOOM
+		reference_overlay.position = ws.ref_pos * canvas_zoom
+		reference_overlay.size = ws.ref_size * canvas_zoom
+		reference_overlay.modulate.a = ws.get("ref_opacity", 1.0)
+		reference_overlay.show()
+		reference_opacity_input.text = str(int(ws.ref_opacity * 100))
+	else:
+		reference_overlay.texture = null
+		reference_overlay.hide()
+		current_ref_path = ""
+		is_transforming_ref = false
+		reference_transform.hide()
 
 # ═══════════════════════════════════════════════════════════════
 # INSPECTOR LOGIC
@@ -1385,11 +1671,23 @@ func _apply_inspector(pos: Vector2i):
 	
 	# Identify Biome Name
 	inspected_biome_id = "Unknown"
-	var list = _get_active_list()
+	var list = STATIC_BIOMES
+	
+	# More robust color matching
+	var best_match = "Unknown"
+	var min_dist = 0.3 # Increased threshold
+	
+	print("[INSPECT] pos=", pos, " target_color=", target_color, " (", target_color.to_html(false), ")")
 	for b in list:
-		if b.color.is_equal_approx(target_color):
-			inspected_biome_id = b.name
-			break
+		var c1 = Vector3(b.color.r, b.color.g, b.color.b)
+		var c2 = Vector3(target_color.r, target_color.g, target_color.b)
+		var d = c1.distance_to(c2)
+		if d < min_dist:
+			min_dist = d
+			best_match = b.name
+	
+	print("[INSPECT] Final Result: ", best_match)
+	inspected_biome_id = best_match
 			
 	_update_inspector_ui()
 	_update_inspector_overlay()
@@ -1421,28 +1719,165 @@ func _find_connected_biome(start_pos: Vector2i, color: Color) -> Dictionary:
 	return {"image": mask, "count": count}
 
 func _update_inspector_ui():
-	inspector_panel.get_node("Stats/BiomeName").text = inspected_biome_id
-	inspector_panel.get_node("Stats/Area").text = "Area: %d px" % inspected_pixels
-	var total = canvas_image.get_width() * canvas_image.get_height()
-	inspector_panel.get_node("Stats/Percentage").text = "Coverage: %.2f%%" % (float(inspected_pixels) / total * 100.0)
+	# 1. Clear old content
+	var stats_node = inspector_panel.get_node("Stats")
+	for child in stats_node.get_children():
+		child.queue_free()
 	
-	# Update Ore List (Example stats)
-	var ore_list = inspector_panel.get_node("Stats/OreList")
-	for c in ore_list.get_children(): c.queue_free()
+	# 2. Section: STATISTICS
+	_add_inspector_header(stats_node, "BIOME STATISTICS")
 	
-	var ores = _get_mock_ores_for_biome(inspected_biome_id)
-	for ore in ores:
-		var l = Label.new()
-		l.text = "- %s: %d%%" % [ore.name, ore.chance]
-		l.add_theme_font_size_override("font_size", 10)
-		l.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
-		ore_list.add_child(l)
+	var main_info = VBoxContainer.new()
+	main_info.add_theme_constant_override("separation", 2)
+	stats_node.add_child(main_info)
+	
+	var biome_lab = Label.new()
+	biome_lab.text = "Biome: " + inspected_biome_id
+	biome_lab.add_theme_font_size_override("font_size", 14)
+	main_info.add_child(biome_lab)
+	
+	var area_lab = Label.new()
+	area_lab.text = "Area: %d px" % inspected_pixels
+	area_lab.add_theme_font_size_override("font_size", 11)
+	area_lab.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	main_info.add_child(area_lab)
+	
+	_add_custom_divider(stats_node)
+	
+	# 3. Section: BIOME CONFIGURATION
+	_add_inspector_header(stats_node, "BIOME CONFIGURATION")
+	
+	var categories = ["Tiles", "Props", "Actors"]
+	for cat in categories:
+		var cat_header = PanelContainer.new()
+		var cs = StyleBoxFlat.new()
+		cs.bg_color = Color(1, 1, 1, 0.05)
+		cs.set_corner_radius_all(4)
+		cs.content_margin_left = 8
+		cs.content_margin_top = 4
+		cs.content_margin_bottom = 4
+		cat_header.add_theme_stylebox_override("panel", cs)
+		stats_node.add_child(cat_header)
+		
+		var cl = Label.new()
+		cl.text = cat.to_upper()
+		cl.add_theme_font_size_override("font_size", 11)
+		cl.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
+		cat_header.add_child(cl)
+		
+		var cat_container = VBoxContainer.new()
+		cat_container.name = "Cat_" + cat
+		cat_container.add_theme_constant_override("separation", 12)
+		var cat_margin = MarginContainer.new()
+		cat_margin.add_theme_constant_override("margin_left", 8)
+		cat_margin.add_child(cat_container)
+		stats_node.add_child(cat_margin)
+		
+		if cat == "Actors":
+			cat_header.modulate.a = 0.4
+			cat_margin.modulate.a = 0.4
+		elif cat == "Tiles":
+			_build_tiles_inspector_subsections(cat_container)
+		elif cat == "Props":
+			_build_props_inspector_subsections(cat_container)
+			
+		stats_node.add_child(Control.new()) # Spacer
 
-func _get_mock_ores_for_biome(b_name: String) -> Array:
-	if b_name.contains("than đá"): return [{"name": "Than đá", "chance": 85}, {"name": "Sắt", "chance": 10}]
-	if b_name.contains("núi lửa"): return [{"name": "Lưu huỳnh", "chance": 60}, {"name": "Vàng", "chance": 5}]
-	if b_name.contains("Đồng bằng"): return [{"name": "Sắt", "chance": 30}, {"name": "Đồng", "chance": 20}]
-	return [{"name": "Đá vụn", "chance": 100}]
+func _add_inspector_header(parent: Control, title: String):
+	var l = Label.new()
+	l.text = title
+	l.add_theme_font_size_override("font_size", 10)
+	l.add_theme_color_override("font_color", Color(0.4, 0.45, 0.5))
+	parent.add_child(l)
+
+func _add_custom_divider(parent: Control):
+	var sep = HSeparator.new()
+	var style = StyleBoxLine.new()
+	style.color = Color(0.2, 0.25, 0.3) # Darker, MapTool-friendly color
+	style.grow_begin = 0
+	style.grow_end = 0
+	sep.add_theme_stylebox_override("separator", style)
+	parent.add_child(sep)
+
+func _build_tiles_inspector_subsections(parent: VBoxContainer):
+	var sub_cats = ["Grounds", "Fluids", "Overlays"]
+	for sub in sub_cats:
+		var sub_lab = Label.new()
+		sub_lab.text = sub
+		sub_lab.add_theme_font_size_override("font_size", 10)
+		sub_lab.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
+		parent.add_child(sub_lab)
+		
+		var items_box = VBoxContainer.new()
+		items_box.add_theme_constant_override("separation", 4)
+		parent.add_child(items_box)
+		
+		# Fill with specific items based on biome
+		var biome_lower = inspected_biome_id.to_lower()
+		if biome_lower.contains("sa mạc") or biome_lower.contains("desert"):
+			if sub == "Grounds":
+				_add_inspector_scrollbar_item(items_box, "sand_block", "grounds", 100)
+			elif sub == "Fluids":
+				_add_inspector_scrollbar_item(items_box, "oil_block", "fluids", 20)
+				_add_inspector_scrollbar_item(items_box, "water_block", "fluids", 10)
+				_add_inspector_scrollbar_item(items_box, "lava_block", "fluids", 5)
+		else:
+			# Default mockup for other biomes
+			if sub == "Grounds":
+				_add_inspector_scrollbar_item(items_box, "default_ground", "grounds", 100)
+
+func _build_props_inspector_subsections(parent: VBoxContainer):
+	var biome_lower = inspected_biome_id.to_lower()
+	if biome_lower.contains("sa mạc") or biome_lower.contains("desert"):
+		_add_inspector_scrollbar_item(parent, "cactus", "props/plants/trees", 15)
+
+func _add_inspector_scrollbar_item(parent: Control, item_id: String, sub_path: String, value: int):
+	var hbox = HBoxContainer.new()
+	hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parent.add_child(hbox)
+	
+	var display_name = _get_item_display_name(item_id, sub_path)
+	
+	var label = Label.new()
+	label.text = display_name
+	label.custom_minimum_size = Vector2(110, 0)
+	label.add_theme_font_size_override("font_size", 10)
+	label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	hbox.add_child(label)
+	
+	# ScrollbarUI (implemented as ProgressBar)
+	var progress = ProgressBar.new()
+	progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	progress.custom_minimum_size = Vector2(0, 14)
+	progress.value = value
+	progress.show_percentage = true
+	
+	# Style
+	var sb_bg = StyleBoxFlat.new()
+	sb_bg.bg_color = Color(0.12, 0.12, 0.12)
+	sb_bg.set_corner_radius_all(4)
+	progress.add_theme_stylebox_override("background", sb_bg)
+	
+	var sb_fill = StyleBoxFlat.new()
+	sb_fill.bg_color = Color(0.2, 0.45, 0.85)
+	sb_fill.set_corner_radius_all(4)
+	progress.add_theme_stylebox_override("fill", sb_fill)
+	
+	progress.add_theme_font_size_override("font_size", 8)
+	hbox.add_child(progress)
+
+func _get_item_display_name(id: String, sub_path: String) -> String:
+	var info_path = "res://assets/" + sub_path + "/" + id + "/info.json"
+	if FileAccess.file_exists(info_path):
+		var f = FileAccess.open(info_path, FileAccess.READ)
+		var json = JSON.parse_string(f.get_as_text())
+		if json and json.has("display_name"):
+			return json["display_name"]
+	
+	return id.replace("_", " ").capitalize()
+
+func _get_mock_ores_for_biome(_b_name: String) -> Array:
+	return [] # Deprecated but keeping for compatibility if called elsewhere
 
 func _update_inspector_overlay():
 	inspector_overlay.visible = true
