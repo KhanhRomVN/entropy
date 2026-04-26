@@ -879,6 +879,20 @@ theme_override_constants/margin_bottom = 8
 layout_mode = 2
 theme_override_constants/separation = 6
 
+[node name="Move" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(0.215686, 0.541176, 0.866667, 1)
+theme_override_colors/icon_focus_color = Color(0.215686, 0.541176, 0.866667, 1)
+theme_override_styles/normal = SubResource("StyleBoxEmpty_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+tooltip_text = "Move (V)"
+
 [node name="Brush" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools"]
 custom_minimum_size = Vector2(34, 34)
 layout_mode = 2
@@ -905,7 +919,21 @@ theme_override_colors/icon_focus_color = Color(0.215686, 0.541176, 0.866667, 1)
 theme_override_styles/normal = SubResource("StyleBoxEmpty_BtnNormal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
-tooltip_text = "Marquee (M)"
+tooltip_text = "Rectangular Marquee (M)"
+
+[node name="PolyLasso" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/icon_normal_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/icon_pressed_color = Color(0.215686, 0.541176, 0.866667, 1)
+theme_override_colors/icon_focus_color = Color(0.215686, 0.541176, 0.866667, 1)
+theme_override_styles/normal = SubResource("StyleBoxEmpty_BtnNormal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_BtnHover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_BtnActive")
+tooltip_text = "Polygonal Lasso (L)"
 
 [node name="Wand" type="Button" parent="AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools"]
 custom_minimum_size = Vector2(34, 34)

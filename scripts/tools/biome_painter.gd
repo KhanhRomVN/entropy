@@ -62,6 +62,8 @@ enum SelectionMode { REPLACE, ADD, SUBTRACT, INTERSECT }
 enum BrushShape { ROUND, SQUARE }
 var current_selection_mode = SelectionMode.REPLACE
 var selection_mask: BitMap
+var poly_points: Array[Vector2] = []
+var poly_line: Line2D
 
 # Inspector State
 var inspected_biome_id: String = ""
@@ -74,6 +76,11 @@ var zoom_start_mouse_v: Vector2
 var pipette_cursor: Texture2D
 var selection_start: Vector2 = Vector2.ZERO
 var has_selection: bool = false
+
+# Move Tool State
+var is_moving_ref: bool = false
+var move_drag_start_canvas_pos: Vector2
+var move_drag_start_ref_pos: Vector2
 
 @onready var workspace_dock = $AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/WorkspaceContainer/WorkspaceDock
 @onready var workspace_padding = $AppFrame/MainVerticalLayout/MainContentLayout/CanvasArea/VBox/WorkspaceContainer/WorkspaceDock/WorkspacePadding
@@ -132,12 +139,14 @@ var ref_start_rect = Rect2()
 var ref_aspect_ratio = 1.0
 var current_ref_path = ""
 
+@onready var btn_move = $AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools/Move
 @onready var btn_brush = $AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools/Brush
 @onready var btn_rect = $AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools/Rect
 @onready var btn_wand = $AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools/Wand
 @onready var btn_eraser = $AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools/Eraser
 @onready var btn_inspector = $AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools/Inspector
 @onready var btn_reference = $AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools/Reference
+@onready var btn_poly = $AppFrame/MainVerticalLayout/MainContentLayout/SidebarRight/VBox/ToolsMargin/Tools/PolyLasso
 
 @onready var input_name = $OverlayLayer/NewFileModal/Center/Panel/Margin/VBox/Grid/InputName
 @onready var input_w = $OverlayLayer/NewFileModal/Center/Panel/Margin/VBox/Grid/HBox/InputW
@@ -191,6 +200,7 @@ func _ready():
 	_setup_initial_workspace()
 	_build_biome_list() 
 	_connect_ui()
+	_setup_poly_tool()
 	_update_tool_ui()
 	_update_tool_options_visibility()
 	_update_brush_cursor_size()
@@ -231,6 +241,17 @@ func _ready():
 
 	# Automatically load world1.entmap
 	_perform_load("res://assets/world/world1.entmap")
+
+func _setup_poly_tool():
+	_setup_button_icon(btn_move, "res://assets/ui/icons/move.svg", 20)
+	_setup_button_icon(btn_poly, "res://assets/ui/icons/pencil_line.svg", 18)
+	
+	poly_line = Line2D.new()
+	poly_line.width = 1.0 / canvas_zoom
+	poly_line.default_color = Color.WHITE
+	poly_line.closed = false
+	canvas_content.add_child(poly_line)
+	poly_line.hide()
 
 func _setup_initial_workspace():
 	tabs_bar.tab_count = 0
@@ -314,6 +335,7 @@ func _switch_workspace(idx: int):
 	workspace_padding.position = -canvas_scroll
 	_update_custom_scrollbars()
 	_update_selection_visual()
+	_apply_workspace_reference(ws)
 	
 	print("[WORKSPACE] Switched to: ", ws.name)
 
@@ -361,6 +383,8 @@ func _connect_ui():
 	btn_eraser.pressed.connect(func(): set_tool("eraser"))
 	btn_inspector.pressed.connect(func(): set_tool("inspector"))
 	btn_reference.pressed.connect(func(): set_tool("reference"))
+	btn_poly.pressed.connect(func(): set_tool("poly_lasso"))
+	btn_move.pressed.connect(func(): set_tool("move"))
 	
 	btn_load_ref.pressed.connect(_on_load_reference_pressed)
 	reference_opacity_input.text_submitted.connect(_on_opacity_input_submitted)
@@ -801,6 +825,10 @@ func _on_canvas_gui_input(event):
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
+				if event.double_click and current_tool == "poly_lasso":
+					_finalize_poly_tool()
+					return
+
 				if event.alt_pressed and current_tool == "brush":
 					_pick_biome_at_pos(local_pos)
 					return
@@ -822,13 +850,55 @@ func _on_canvas_gui_input(event):
 				last_click_pos = local_pos
 			else:
 				is_drawing = false
-				_finalize_rect_tool(local_pos)
-				
-	elif event is InputEventMouseMotion and is_drawing:
-		if current_tool == "brush" or current_tool == "eraser":
-			_interpolate_draw(local_pos)
-		else:
-			_apply_tool(local_pos)
+				if current_tool == "rect":
+					_finalize_rect_tool(local_pos)
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			if event.pressed:
+				if current_tool == "poly_lasso":
+					if poly_points.size() > 0:
+						poly_points.pop_back()
+						_update_poly_preview()
+					else:
+						set_tool("brush") # Cancel tool if no points
+		
+	elif event is InputEventMouseMotion:
+		if is_drawing:
+			if current_tool == "brush" or current_tool == "eraser":
+				_interpolate_draw(local_pos)
+			else:
+				_apply_tool(local_pos)
+		
+		if current_tool == "poly_lasso":
+			_update_poly_preview()
+
+func _on_poly_lasso_input(local_pos: Vector2):
+	var p = local_pos
+	if poly_points.size() > 2:
+		# Check if near start point (10 pixel radius in canvas space)
+		if p.distance_to(poly_points[0]) < 10.0 / canvas_zoom:
+			_finalize_poly_tool()
+			return
+	
+	poly_points.append(p)
+	_update_poly_preview()
+
+func _update_poly_preview():
+	if current_tool != "poly_lasso" or poly_points.is_empty():
+		poly_line.hide()
+		return
+	
+	poly_line.show()
+	poly_line.width = 2.0 / canvas_zoom
+	
+	var points = poly_points.duplicate()
+	var mouse_pos = _get_canvas_local_pos(get_global_mouse_position())
+	points.append(mouse_pos)
+	
+	# Scale points to match the zoomed canvas_content size
+	for i in range(points.size()):
+		points[i] *= canvas_zoom
+	
+	poly_line.points = points
 
 func _interpolate_draw(pos: Vector2):
 	var dist = last_draw_pos.distance_to(pos)
@@ -1041,6 +1111,8 @@ func _unhandled_input(event):
 			KEY_E: set_tool("eraser")
 			KEY_I: set_tool("inspector")
 			KEY_R: set_tool("reference")
+			KEY_L: set_tool("poly_lasso")
+			KEY_V: set_tool("move")
 
 	# Pan with Space bar
 	if event is InputEventKey and event.keycode == KEY_SPACE:
@@ -1082,6 +1154,8 @@ func _apply_tool(pos: Vector2, force_erase: bool = false):
 	match current_tool:
 		"brush", "eraser": _draw_brush(p, brush_size, color)
 		"rect": _update_selection_preview(pos)
+		"poly_lasso": _on_poly_lasso_input(pos)
+		"move": _on_move_input(pos)
 		"wand":
 			if is_drawing: 
 				_flood_fill(p, color)
@@ -1093,7 +1167,9 @@ func _apply_tool(pos: Vector2, force_erase: bool = false):
 
 func _draw_brush(center: Vector2i, size: int, color: Color):
 	if size <= 1:
-		if _is_pos_valid(center): canvas_image.set_pixelv(center, color)
+		if _is_pos_valid(center):
+			if not has_selection or (selection_mask and selection_mask.get_bitv(center)):
+				canvas_image.set_pixelv(center, color)
 		return
 	
 	var offset = size / 2 # Integer division: 2->1, 3->1, 4->2
@@ -1120,31 +1196,96 @@ func _draw_brush(center: Vector2i, size: int, color: Color):
 		x_end = min(img_size.x - 1, x_end)
 		
 		if x_start <= x_end:
-			canvas_image.fill_rect(Rect2i(x_start, ty, x_end - x_start + 1, 1), color)
+			if has_selection and selection_mask:
+				for x in range(x_start, x_end + 1):
+					if selection_mask.get_bit(x, ty):
+						canvas_image.set_pixel(x, ty, color)
+			else:
+				canvas_image.fill_rect(Rect2i(x_start, ty, x_end - x_start + 1, 1), color)
 
 func _finalize_rect_tool(pos: Vector2):
 	if current_tool != "rect": return
 	var p1 = Vector2i(selection_start); var p2 = Vector2i(pos)
 	var rect = Rect2i(p1, p2 - p1).abs()
+	
+	var new_mask = BitMap.new()
+	new_mask.create(canvas_image.get_size())
+	
 	for x in range(rect.position.x, rect.end.x):
 		for y in range(rect.position.y, rect.end.y):
-			if _is_pos_valid(Vector2i(x, y)):
-				canvas_image.set_pixel(x, y, _get_active_list()[current_biome_idx].color)
+			var p = Vector2i(x, y)
+			if _is_pos_valid(p):
+				new_mask.set_bitv(p, true)
+	
+	_merge_selection(new_mask)
 	selection_overlay.visible = false
-	_update_texture()
+
+func _finalize_poly_tool():
+	if poly_points.size() < 3:
+		poly_points.clear()
+		_update_poly_preview()
+		return
+	
+	_prepare_undo()
+	
+	var list = _get_active_list()
+	var color = list[current_biome_idx].color
+	
+	# Calculate bounding box
+	var min_x = poly_points[0].x
+	var min_y = poly_points[0].y
+	var max_x = poly_points[0].x
+	var max_y = poly_points[0].y
+	
+	for p in poly_points:
+		min_x = min(min_x, p.x)
+		min_y = min(min_y, p.y)
+		max_x = max(max_x, p.x)
+		max_y = max(max_y, p.y)
+	
+	var rect = Rect2i(int(min_x), int(min_y), int(max_x - min_x) + 1, int(max_y - min_y) + 1)
+	var img_size = canvas_image.get_size()
+	
+	# Clamp to image size
+	rect.position.x = max(0, rect.position.x)
+	rect.position.y = max(0, rect.position.y)
+	rect.size.x = min(img_size.x - rect.position.x, rect.size.x)
+	rect.size.y = min(img_size.y - rect.position.y, rect.size.y)
+	
+	# Fill polygon mask
+	var new_mask = BitMap.new()
+	new_mask.create(img_size)
+	
+	for y in range(rect.position.y, rect.end.y):
+		for x in range(rect.position.x, rect.end.x):
+			var p = Vector2(x + 0.5, y + 0.5)
+			if Geometry2D.is_point_in_polygon(p, poly_points):
+				new_mask.set_bit(x, y, true)
+	
+	_merge_selection(new_mask)
+	
+	poly_points.clear()
+	_update_poly_preview()
 
 func _clear_selection():
 	if selection_mask:
 		selection_mask.create(canvas_image.get_size())
 	has_selection = false
 	_update_selection_visual()
+	# Update workspace data if needed
+	if current_workspace_idx >= 0:
+		workspaces[current_workspace_idx].selection_mask = selection_mask
 
 func _apply_wand_selection(pos: Vector2):
 	var p = Vector2i(pos)
 	if not _is_pos_valid(p): return
-	
-	var new_mask = _flood_select(p)
-	
+	_merge_selection(_flood_select(p))
+
+func _merge_selection(new_mask: BitMap):
+	if not selection_mask:
+		selection_mask = BitMap.new()
+		selection_mask.create(canvas_image.get_size())
+
 	match current_selection_mode:
 		SelectionMode.REPLACE:
 			selection_mask = new_mask
@@ -1195,8 +1336,35 @@ func _flood_select(start_pos: Vector2i) -> BitMap:
 					stack.push_back(n)
 	return mask
 
+func _on_move_input(pos: Vector2):
+	if not is_drawing:
+		is_moving_ref = false
+		return
+	
+	if not is_moving_ref:
+		# Check if clicking on reference image
+		if reference_overlay.visible and reference_overlay.texture:
+			var ref_rect = Rect2(reference_overlay.position / canvas_zoom, reference_overlay.size / canvas_zoom)
+			if ref_rect.has_point(pos):
+				is_moving_ref = true
+				move_drag_start_canvas_pos = pos
+				move_drag_start_ref_pos = reference_overlay.position / canvas_zoom
+				_prepare_undo() # Optional: move could be undoable too
+		return
+	
+	if is_moving_ref:
+		var diff = pos - move_drag_start_canvas_pos
+		var new_pos = move_drag_start_ref_pos + diff
+		reference_overlay.position = new_pos * canvas_zoom
+		if current_workspace_idx >= 0:
+			workspaces[current_workspace_idx].ref_pos = new_pos
+
 func _update_selection_visual():
-	if not selection_mask: return
+	if not selection_mask or not has_selection:
+		selection_mask_buffer.texture = null
+		selection_mask_buffer.visible = false
+		has_selection = false
+		return
 	
 	# Create an image from BitMap. This is a bit slow in GDScript for 1M pixels, 
 	# but for limited size it's acceptable. Optimization would use PackedByteArray.
@@ -1326,10 +1494,14 @@ func set_tool(tool_name: String):
 	_update_tool_ui()
 	_update_brush_cursor_position()
 	_update_tool_options_visibility()
+	
+	if tool_name != "poly_lasso":
+		poly_points.clear()
+		_update_poly_preview()
 
 func _update_tool_options_visibility():
 	brush_options.visible = (current_tool == "brush")
-	selection_options.visible = (current_tool == "rect" or current_tool == "wand")
+	selection_options.visible = (current_tool == "rect" or current_tool == "wand" or current_tool == "poly_lasso")
 	eraser_options.visible = (current_tool == "eraser")
 	reference_options.visible = (current_tool == "reference")
 	
@@ -1545,6 +1717,18 @@ func _on_open_dialog_file_selected(path: String):
 	_perform_load(path)
 
 func _perform_save(path: String):
+	# 0. Sync current UI state to workspace dictionary
+	if current_workspace_idx >= 0:
+		var ws = workspaces[current_workspace_idx]
+		ws.zoom = canvas_zoom
+		ws.scroll = canvas_scroll
+		# Ensure opacity is flushed from input even if focus wasn't lost
+		_on_opacity_input_submitted(reference_opacity_input.text)
+		
+		ws.ref_pos = reference_overlay.position / canvas_zoom
+		ws.ref_size = reference_overlay.size / canvas_zoom
+		ws.ref_opacity = reference_overlay.modulate.a
+
 	# 1. Prepare Image Data as Base64
 	var buffer = canvas_image.save_png_to_buffer()
 	var b64_data = Marshalls.raw_to_base64(buffer)
@@ -1644,9 +1828,10 @@ func _apply_workspace_reference(ws: Dictionary):
 		# Apply transform WITH ZOOM
 		reference_overlay.position = ws.ref_pos * canvas_zoom
 		reference_overlay.size = ws.ref_size * canvas_zoom
-		reference_overlay.modulate.a = ws.get("ref_opacity", 1.0)
+		var opacity = ws.get("ref_opacity", 0.5)
+		reference_overlay.modulate.a = opacity
 		reference_overlay.show()
-		reference_opacity_input.text = str(int(ws.ref_opacity * 100))
+		reference_opacity_input.text = str(int(opacity * 100))
 	else:
 		reference_overlay.texture = null
 		reference_overlay.hide()
